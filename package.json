@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "pretauri": "npm run typecheck",
     "tauri": "npm run sync-version && tauri",
-    "sync-version": "node scripts/sync-version.js"
+    "sync-version": "node scripts/sync-version.js",
+    "sync-upstream": "node scripts/sync-upstream.js"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
