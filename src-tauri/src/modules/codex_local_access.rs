@@ -206,6 +206,7 @@ struct RoutingCandidate {
     plan_rank: Option<i32>,
     remaining_quota: Option<i32>,
     subscription_expiry_ms: Option<i64>,
+    paid_subscription_expiry_ms: Option<i64>,
 }
 
 fn gateway_runtime() -> &'static TokioMutex<GatewayRuntime> {
@@ -2321,8 +2322,8 @@ fn normalize_auth_file_plan_type(plan_type: Option<&str>) -> Option<&'static str
         .to_ascii_lowercase()
         .replace(['_', ' '], "-");
     match normalized.as_str() {
-        "prolite" | "pro-lite" => Some("prolite"),
-        "promax" | "pro-max" => Some("promax"),
+        "prolite" | "pro-lite" | "pro-5x" | "codex-pro-5x" => Some("prolite"),
+        "promax" | "pro-max" | "pro-20x" | "codex-pro-20x" => Some("promax"),
         _ => None,
     }
 }
@@ -2364,7 +2365,7 @@ fn resolve_remaining_quota(account: &CodexAccount) -> Option<i32> {
     percentages.into_iter().min()
 }
 
-fn resolve_subscription_expiry_ms(account: &CodexAccount) -> Option<i64> {
+fn parse_subscription_expiry_ms(account: &CodexAccount) -> Option<i64> {
     let raw = account.subscription_active_until.as_deref()?.trim();
     if raw.is_empty() {
         return None;
@@ -2383,6 +2384,18 @@ fn resolve_subscription_expiry_ms(account: &CodexAccount) -> Option<i64> {
         .map(|parsed| parsed.timestamp_millis())
 }
 
+fn resolve_subscription_expiry_ms(account: &CodexAccount) -> Option<i64> {
+    let expiry_ms = parse_subscription_expiry_ms(account)?;
+    (expiry_ms > now_ms()).then_some(expiry_ms)
+}
+
+fn resolve_paid_subscription_expiry_ms(account: &CodexAccount) -> Option<i64> {
+    if account.is_api_key_auth() || is_free_plan_type(account.plan_type.as_deref()) {
+        return None;
+    }
+    resolve_subscription_expiry_ms(account)
+}
+
 fn build_routing_candidates(ordered_account_ids: &[String]) -> Vec<RoutingCandidate> {
     ordered_account_ids
         .iter()
@@ -2393,7 +2406,12 @@ fn build_routing_candidates(ordered_account_ids: &[String]) -> Vec<RoutingCandid
                 account_id: account_id.clone(),
                 plan_rank: account.as_ref().and_then(resolve_plan_rank),
                 remaining_quota: account.as_ref().and_then(resolve_remaining_quota),
-                subscription_expiry_ms: account.as_ref().and_then(resolve_subscription_expiry_ms),
+                subscription_expiry_ms: account
+                    .as_ref()
+                    .and_then(resolve_subscription_expiry_ms),
+                paid_subscription_expiry_ms: account
+                    .as_ref()
+                    .and_then(resolve_paid_subscription_expiry_ms),
             }
         })
         .collect()
@@ -2428,7 +2446,11 @@ fn compare_routing_candidates(
 
     let ordering = match strategy {
         CodexLocalAccessRoutingStrategy::Auto => {
-            compare_option_desc(left.plan_rank, right.plan_rank)
+            compare_option_i64_asc(
+                left.paid_subscription_expiry_ms,
+                right.paid_subscription_expiry_ms,
+            )
+                .then_with(|| compare_option_desc(left.plan_rank, right.plan_rank))
                 .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota))
         }
         CodexLocalAccessRoutingStrategy::QuotaHighFirst => {
@@ -2448,7 +2470,13 @@ fn compare_routing_candidates(
                 .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota))
         }
         CodexLocalAccessRoutingStrategy::ExpirySoonFirst => {
-            compare_option_i64_asc(left.subscription_expiry_ms, right.subscription_expiry_ms)
+            compare_option_i64_asc(
+                left.paid_subscription_expiry_ms,
+                right.paid_subscription_expiry_ms,
+            )
+                .then_with(|| {
+                    compare_option_i64_asc(left.subscription_expiry_ms, right.subscription_expiry_ms)
+                })
                 .then_with(|| compare_option_desc(left.plan_rank, right.plan_rank))
                 .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota))
         }
@@ -3011,6 +3039,7 @@ async fn ensure_runtime_loaded_without_start() -> Result<(), String> {
             api_key: generate_local_api_key(),
             routing_strategy: CodexLocalAccessRoutingStrategy::default(),
             restrict_free_accounts: true,
+            restrict_free_models: Vec::new(),
             account_ids: Vec::new(),
             created_at: now_ms(),
             updated_at: now_ms(),
@@ -3379,6 +3408,7 @@ pub async fn save_local_access_accounts(
                 api_key: generate_local_api_key(),
                 routing_strategy: CodexLocalAccessRoutingStrategy::default(),
                 restrict_free_accounts: true,
+                restrict_free_models: Vec::new(),
                 account_ids: Vec::new(),
                 created_at: now_ms(),
                 updated_at: now_ms(),
@@ -3447,6 +3477,39 @@ pub async fn update_local_access_routing_strategy(
         sync_runtime_collection(&mut runtime, collection);
     }
 
+    snapshot_state().await
+}
+
+pub async fn update_local_access_restrict_free_models(
+    model_ids: Vec<String>,
+) -> Result<CodexLocalAccessState, String> {
+    ensure_runtime_loaded().await?;
+
+    let maybe_collection = {
+        let runtime = gateway_runtime().lock().await;
+        runtime.collection.clone()
+    };
+
+    let Some(mut collection) = maybe_collection else {
+        return Err("本地接入集合尚未创建".to_string());
+    };
+
+    let normalized: Vec<String> = model_ids
+        .into_iter()
+        .map(|m| m.trim().to_ascii_lowercase())
+        .filter(|m| !m.is_empty())
+        .collect();
+
+    collection.restrict_free_models = normalized;
+    collection.updated_at = now_ms();
+    save_collection_to_disk(&collection)?;
+
+    {
+        let mut runtime = gateway_runtime().lock().await;
+        sync_runtime_collection(&mut runtime, collection);
+    }
+
+    ensure_gateway_matches_runtime().await?;
     snapshot_state().await
 }
 
@@ -5204,7 +5267,12 @@ async fn proxy_request_with_account_pool(
                 last_error = "API Key 账号不支持加入本地接入".to_string();
                 continue;
             }
-            if collection.restrict_free_accounts && is_free_plan_type(account.plan_type.as_deref())
+            let model_restricts_free = collection
+                .restrict_free_models
+                .iter()
+                .any(|m| m.eq_ignore_ascii_case(&routing_hint.model_key));
+            if (collection.restrict_free_accounts || model_restricts_free)
+                && is_free_plan_type(account.plan_type.as_deref())
             {
                 log_codex_api_failure(
                     None,

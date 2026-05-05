@@ -53,6 +53,12 @@ export async function updateCodexLocalAccessRoutingStrategy(
   return await invoke('codex_local_access_update_routing_strategy', { strategy });
 }
 
+export async function updateCodexLocalAccessRestrictFreeModels(
+  modelIds: string[],
+): Promise<CodexLocalAccessState> {
+  return await invoke('codex_local_access_update_restrict_free_models', { modelIds });
+}
+
 export async function setCodexLocalAccessEnabled(
   enabled: boolean,
 ): Promise<CodexLocalAccessState> {

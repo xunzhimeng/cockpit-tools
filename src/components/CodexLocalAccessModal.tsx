@@ -70,6 +70,9 @@ interface CodexLocalAccessModalProps {
   onUpdateRoutingStrategy: (
     strategy: CodexLocalAccessRoutingStrategy,
   ) => Promise<unknown> | unknown;
+  onUpdateRestrictFreeModels: (
+    modelIds: string[],
+  ) => Promise<unknown> | unknown;
   onRotateApiKey: () => Promise<unknown> | unknown;
   onKillPort: () => Promise<unknown> | unknown;
   onToggleEnabled: () => Promise<unknown> | unknown;
@@ -152,6 +155,7 @@ export function CodexLocalAccessModal({
   onRefreshStats,
   onUpdatePort,
   onUpdateRoutingStrategy,
+  onUpdateRestrictFreeModels,
   onRotateApiKey,
   onKillPort,
   onToggleEnabled,
@@ -168,6 +172,7 @@ export function CodexLocalAccessModal({
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [groupFilter, setGroupFilter] = useState<string[]>([]);
   const [restrictFreeAccounts, setRestrictFreeAccounts] = useState(true);
+  const [restrictFreeModels, setRestrictFreeModels] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [portInput, setPortInput] = useState('');
@@ -295,6 +300,7 @@ export function CodexLocalAccessModal({
     setTagFilter([]);
     setGroupFilter([]);
     setRestrictFreeAccounts(collection?.restrictFreeAccounts ?? true);
+    setRestrictFreeModels(collection?.restrictFreeModels ?? []);
     setError('');
     setNotice('');
     setKeyVisible(false);
@@ -594,7 +600,7 @@ export function CodexLocalAccessModal({
       },
       {
         value: 'expiry_soon_first',
-        label: t('codex.localAccess.routingStrategy.expirySoonFirst', '优先近到期'),
+        label: t('codex.localAccess.routingStrategy.expirySoonFirst', '优先临近到期'),
       },
     ] satisfies Array<{ value: CodexLocalAccessRoutingStrategy; label: string }>,
     [t],
@@ -675,6 +681,22 @@ export function CodexLocalAccessModal({
   const handleToggleRestrictFreeAccounts = async () => {
     if (actionBusy) return;
     setRestrictFreeAccounts((prev) => !prev);
+  };
+
+  const handleToggleRestrictFreeModel = (modelId: string) => {
+    if (actionBusy) return;
+    setRestrictFreeModels((prev) => {
+      const next = prev.includes(modelId)
+        ? prev.filter((m) => m !== modelId)
+        : [...prev, modelId];
+      const result = onUpdateRestrictFreeModels(next);
+      if (result instanceof Promise) {
+        result.catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : String(err));
+        });
+      }
+      return next;
+    });
   };
 
   const toggleSelect = (accountId: string) => {
@@ -1250,6 +1272,38 @@ export function CodexLocalAccessModal({
                   </div>
                 ) : null}
               </section>
+
+              {modelIds.length > 0 ? (
+                <section className="codex-local-access-section codex-local-access-section-surface codex-local-access-restrict-free-models-section">
+                  <div className="codex-local-access-section-title">
+                    <ShieldCheck size={16} />
+                    <span>
+                      {t('codex.localAccess.restrictFreeModels.label', '过滤 Free 账号的模型')}
+                    </span>
+                  </div>
+                  <div className="codex-local-access-restrict-free-models-grid">
+                    {modelIds.map((modelId) => {
+                      const isRestricted = restrictFreeModels.includes(modelId);
+                      return (
+                        <label
+                          key={modelId}
+                          className={`codex-local-access-restrict-free-model-item${
+                            isRestricted ? ' is-active' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isRestricted}
+                            onChange={() => handleToggleRestrictFreeModel(modelId)}
+                            disabled={actionBusy}
+                          />
+                          <span>{modelId}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
 
               <section className="codex-local-access-section codex-local-access-section-surface codex-local-access-account-stats-section">
                 <div className="codex-local-access-section-title">

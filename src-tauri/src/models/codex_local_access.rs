@@ -31,6 +31,8 @@ pub struct CodexLocalAccessCollection {
     pub routing_strategy: CodexLocalAccessRoutingStrategy,
     #[serde(default = "default_restrict_free_accounts")]
     pub restrict_free_accounts: bool,
+    #[serde(default)]
+    pub restrict_free_models: Vec<String>,
     pub account_ids: Vec<String>,
     pub created_at: i64,
     pub updated_at: i64,

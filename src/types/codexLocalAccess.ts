@@ -12,6 +12,7 @@ export interface CodexLocalAccessCollection {
   apiKey: string;
   routingStrategy: CodexLocalAccessRoutingStrategy;
   restrictFreeAccounts: boolean;
+  restrictFreeModels: string[];
   accountIds: string[];
   createdAt: number;
   updatedAt: number;

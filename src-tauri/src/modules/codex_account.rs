@@ -4738,12 +4738,77 @@ fn metric_margin_over_threshold(
     }
 }
 
+fn normalize_codex_plan_key(plan_type: Option<&str>) -> String {
+    let normalized = plan_type.unwrap_or("").trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return String::new();
+    }
+    if normalized.contains("enterprise") {
+        return "enterprise".to_string();
+    }
+    if normalized.contains("business") {
+        return "business".to_string();
+    }
+    if normalized.contains("team") {
+        return "team".to_string();
+    }
+    if normalized.contains("edu") {
+        return "edu".to_string();
+    }
+    if normalized.contains("go") {
+        return "go".to_string();
+    }
+    if normalized.contains("plus") {
+        return "plus".to_string();
+    }
+    if normalized.contains("pro") {
+        return "pro".to_string();
+    }
+    if normalized.contains("free") {
+        return "free".to_string();
+    }
+    normalized
+}
+
+fn is_free_plan_type(plan_type: Option<&str>) -> bool {
+    matches!(normalize_codex_plan_key(plan_type).as_str(), "free")
+}
+
+fn parse_subscription_expiry_ms(value: Option<&str>) -> Option<i64> {
+    let raw = value?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+
+    if raw.chars().all(|ch| ch.is_ascii_digit()) {
+        let mut timestamp = raw.parse::<i64>().ok()?;
+        if timestamp < 1_000_000_000_000 {
+            timestamp *= 1000;
+        }
+        return Some(timestamp);
+    }
+
+    chrono::DateTime::parse_from_rfc3339(raw)
+        .ok()
+        .map(|parsed| parsed.timestamp_millis())
+}
+
+fn resolve_paid_subscription_expiry_ms(account: &CodexAccount) -> Option<i64> {
+    if account.is_api_key_auth() || is_free_plan_type(account.plan_type.as_deref()) {
+        return None;
+    }
+
+    let expiry_ms = parse_subscription_expiry_ms(account.subscription_active_until.as_deref())?;
+    (expiry_ms > chrono::Utc::now().timestamp_millis()).then_some(expiry_ms)
+}
+
 #[derive(Debug, Clone)]
 struct CodexSwitchCandidate {
     account: CodexAccount,
     min_margin: i32,
     min_percentage: i32,
     average_percentage: f64,
+    paid_subscription_expiry_ms: Option<i64>,
 }
 
 fn build_switch_candidate(
@@ -4776,6 +4841,7 @@ fn build_switch_candidate(
         min_margin,
         min_percentage,
         average_percentage,
+        paid_subscription_expiry_ms: resolve_paid_subscription_expiry_ms(account),
     })
 }
 
@@ -4784,9 +4850,16 @@ fn pick_best_candidate(mut candidates: Vec<CodexSwitchCandidate>) -> Option<Code
         return None;
     }
 
+    let compare_option_i64_asc = |a: Option<i64>, b: Option<i64>| match (a, b) {
+        (Some(left), Some(right)) => left.cmp(&right),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => std::cmp::Ordering::Equal,
+    };
+
     candidates.sort_by(|a, b| {
-        b.min_margin
-            .cmp(&a.min_margin)
+        compare_option_i64_asc(a.paid_subscription_expiry_ms, b.paid_subscription_expiry_ms)
+            .then_with(|| b.min_margin.cmp(&a.min_margin))
             .then_with(|| b.min_percentage.cmp(&a.min_percentage))
             .then_with(|| {
                 b.average_percentage

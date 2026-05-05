@@ -3192,6 +3192,23 @@ export function CodexAccountsPage() {
     }
   }, [setMessage, t]);
 
+  const handleUpdateRestrictFreeModels = useCallback(async (modelIds: string[]) => {
+    setLocalAccessSaving(true);
+    try {
+      const nextState = await codexLocalAccessService.updateCodexLocalAccessRestrictFreeModels(modelIds);
+      setLocalAccessState(nextState);
+      setMessage({
+        text: t('codex.localAccess.restrictFreeModels.success', '过滤 Free 账号的模型已更新'),
+      });
+      return nextState;
+    } catch (error) {
+      console.error('Failed to update restrict free models:', error);
+      throw new Error(String(error).replace(/^Error:\s*/, ''));
+    } finally {
+      setLocalAccessSaving(false);
+    }
+  }, [setMessage, t]);
+
   const handleToggleLocalAccessEnabled = useCallback(async () => {
     if (!localAccessCollection) return;
     if (!localAccessCollection.enabled) {
@@ -6302,6 +6319,7 @@ export function CodexAccountsPage() {
           onRefreshStats={reloadLocalAccessState}
           onUpdatePort={handleUpdateLocalAccessPort}
           onUpdateRoutingStrategy={handleUpdateLocalAccessRoutingStrategy}
+          onUpdateRestrictFreeModels={handleUpdateRestrictFreeModels}
           onRotateApiKey={handleRotateLocalAccessApiKey}
           onKillPort={handleKillLocalAccessPort}
           onToggleEnabled={handleToggleLocalAccessEnabled}

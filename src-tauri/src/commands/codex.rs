@@ -761,6 +761,13 @@ pub async fn codex_local_access_update_routing_strategy(
 }
 
 #[tauri::command]
+pub async fn codex_local_access_update_restrict_free_models(
+    model_ids: Vec<String>,
+) -> Result<CodexLocalAccessState, String> {
+    codex_local_access::update_local_access_restrict_free_models(model_ids).await
+}
+
+#[tauri::command]
 pub async fn codex_local_access_set_enabled(
     enabled: bool,
 ) -> Result<CodexLocalAccessState, String> {
