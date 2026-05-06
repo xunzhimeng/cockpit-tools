@@ -2875,7 +2875,7 @@ export function CodexAccountsPage() {
   ) => {
     setLocalAccessSaving(true);
     try {
-      const restrictFreeAccounts = options?.restrictFreeAccounts ?? true;
+      const restrictFreeAccounts = options?.restrictFreeAccounts ?? false;
       const accountById = new Map(accounts.map((account) => [account.id, account]));
       const filteredAccountIds = accountIds.filter((accountId) => {
         const account = accountById.get(accountId);
@@ -2908,7 +2908,7 @@ export function CodexAccountsPage() {
     try {
       await handleSaveLocalAccessAccounts(
         localAccessCollection.accountIds.filter((id) => id !== accountId),
-        { restrictFreeAccounts: localAccessCollection.restrictFreeAccounts ?? true },
+        { restrictFreeAccounts: localAccessCollection.restrictFreeAccounts ?? false },
       );
     } catch (error) {
       setMessage({

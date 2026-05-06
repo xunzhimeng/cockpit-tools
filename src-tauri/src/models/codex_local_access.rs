@@ -18,7 +18,7 @@ impl Default for CodexLocalAccessRoutingStrategy {
 }
 
 fn default_restrict_free_accounts() -> bool {
-    true
+    false
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -203,6 +203,7 @@ struct RequestRoutingHint {
 #[derive(Debug, Clone)]
 struct RoutingCandidate {
     account_id: String,
+    is_free_plan: bool,
     plan_rank: Option<i32>,
     remaining_quota: Option<i32>,
     subscription_expiry_ms: Option<i64>,
@@ -2404,6 +2405,10 @@ fn build_routing_candidates(ordered_account_ids: &[String]) -> Vec<RoutingCandid
                 .or_else(|| codex_account::load_account(account_id));
             RoutingCandidate {
                 account_id: account_id.clone(),
+                is_free_plan: account
+                    .as_ref()
+                    .map(|account| is_free_plan_type(account.plan_type.as_deref()))
+                    .unwrap_or(false),
                 plan_rank: account.as_ref().and_then(resolve_plan_rank),
                 remaining_quota: account.as_ref().and_then(resolve_remaining_quota),
                 subscription_expiry_ms: account
@@ -2444,7 +2449,13 @@ fn compare_routing_candidates(
         (None, None) => Ordering::Equal,
     };
 
-    let ordering = match strategy {
+    let free_priority = match (left.is_free_plan, right.is_free_plan) {
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
+        _ => Ordering::Equal,
+    };
+
+    let ordering = free_priority.then_with(|| match strategy {
         CodexLocalAccessRoutingStrategy::Auto => {
             compare_option_i64_asc(
                 left.paid_subscription_expiry_ms,
@@ -2480,7 +2491,7 @@ fn compare_routing_candidates(
                 .then_with(|| compare_option_desc(left.plan_rank, right.plan_rank))
                 .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota))
         }
-    };
+    });
 
     ordering.then_with(|| {
         let left_index = original_index
@@ -2498,13 +2509,17 @@ fn compare_routing_candidates(
 fn apply_routing_strategy(
     account_ids: &[String],
     strategy: CodexLocalAccessRoutingStrategy,
+    allow_free_accounts: bool,
 ) -> Vec<String> {
     let original_index: HashMap<String, usize> = account_ids
         .iter()
         .enumerate()
         .map(|(index, account_id)| (account_id.clone(), index))
         .collect();
-    let mut candidates = build_routing_candidates(account_ids);
+    let mut candidates = build_routing_candidates(account_ids)
+        .into_iter()
+        .filter(|candidate| allow_free_accounts || !candidate.is_free_plan)
+        .collect::<Vec<_>>();
     candidates
         .sort_by(|left, right| compare_routing_candidates(left, right, strategy, &original_index));
     candidates
@@ -3038,7 +3053,7 @@ async fn ensure_runtime_loaded_without_start() -> Result<(), String> {
             port: allocate_random_local_port()?,
             api_key: generate_local_api_key(),
             routing_strategy: CodexLocalAccessRoutingStrategy::default(),
-            restrict_free_accounts: true,
+            restrict_free_accounts: false,
             restrict_free_models: Vec::new(),
             account_ids: Vec::new(),
             created_at: now_ms(),
@@ -3407,7 +3422,7 @@ pub async fn save_local_access_accounts(
                 port: allocate_random_local_port()?,
                 api_key: generate_local_api_key(),
                 routing_strategy: CodexLocalAccessRoutingStrategy::default(),
-                restrict_free_accounts: true,
+                restrict_free_accounts: false,
                 restrict_free_models: Vec::new(),
                 account_ids: Vec::new(),
                 created_at: now_ms(),
@@ -5191,6 +5206,11 @@ async fn proxy_request_with_account_pool(
             account_email: None,
         })?;
     let routing_hint = build_request_routing_hint(request);
+    let model_restricts_free = collection
+        .restrict_free_models
+        .iter()
+        .any(|m| m.eq_ignore_ascii_case(&routing_hint.model_key));
+    let allow_free_accounts = !collection.restrict_free_accounts && !model_restricts_free;
     let total = collection.account_ids.len();
     let max_credential_attempts = total.min(MAX_RETRY_CREDENTIALS_PER_REQUEST).max(1);
     let affinity_account_id = match routing_hint.previous_response_id.as_deref() {
@@ -5213,7 +5233,11 @@ async fn proxy_request_with_account_pool(
             affinity_account_id.as_deref(),
         );
         let strategy_account_ids = pin_account_to_front(
-            apply_routing_strategy(&ordered_account_ids, collection.routing_strategy),
+            apply_routing_strategy(
+                &ordered_account_ids,
+                collection.routing_strategy,
+                allow_free_accounts,
+            ),
             affinity_account_id.as_deref(),
         );
         let mut attempted_in_round = false;
@@ -5267,12 +5291,7 @@ async fn proxy_request_with_account_pool(
                 last_error = "API Key 账号不支持加入本地接入".to_string();
                 continue;
             }
-            let model_restricts_free = collection
-                .restrict_free_models
-                .iter()
-                .any(|m| m.eq_ignore_ascii_case(&routing_hint.model_key));
-            if (collection.restrict_free_accounts || model_restricts_free)
-                && is_free_plan_type(account.plan_type.as_deref())
+            if !allow_free_accounts && is_free_plan_type(account.plan_type.as_deref())
             {
                 log_codex_api_failure(
                     None,
