@@ -10,10 +10,22 @@ export interface CodexLocalAccessCollection {
   enabled: boolean;
   port: number;
   apiKey: string;
+  apiKeys: CodexLocalAccessApiKey[];
   routingStrategy: CodexLocalAccessRoutingStrategy;
   restrictFreeAccounts: boolean;
   restrictFreeModels: string[];
   accountIds: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CodexLocalAccessApiKey {
+  id: string;
+  name: string;
+  key: string;
+  enabled: boolean;
+  dailyTokenLimit: number | null;
+  totalTokenLimit: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -37,11 +49,19 @@ export interface CodexLocalAccessAccountStats {
   updatedAt: number;
 }
 
+export interface CodexLocalAccessKeyStats {
+  keyId: string;
+  name: string;
+  usage: CodexLocalAccessUsageStats;
+  updatedAt: number;
+}
+
 export interface CodexLocalAccessStatsWindow {
   since: number;
   updatedAt: number;
   totals: CodexLocalAccessUsageStats;
   accounts: CodexLocalAccessAccountStats[];
+  keys: CodexLocalAccessKeyStats[];
 }
 
 export interface CodexLocalAccessStats {
@@ -49,6 +69,7 @@ export interface CodexLocalAccessStats {
   updatedAt: number;
   totals: CodexLocalAccessUsageStats;
   accounts: CodexLocalAccessAccountStats[];
+  keys: CodexLocalAccessKeyStats[];
   daily: CodexLocalAccessStatsWindow;
   weekly: CodexLocalAccessStatsWindow;
   monthly: CodexLocalAccessStatsWindow;
@@ -59,6 +80,8 @@ export interface CodexLocalAccessState {
   running: boolean;
   apiPortUrl: string | null;
   baseUrl: string | null;
+  externalApiPortUrl: string | null;
+  externalBaseUrl: string | null;
   modelIds: string[];
   lastError: string | null;
   memberCount: number;

@@ -2873,6 +2873,23 @@ export function CodexAccountsPage() {
     localAccessQuotaPoolSummary.visiblePlans.length - localAccessQuotaPreviewItems.length,
   );
   const overviewAccounts = accounts;
+  const primaryLocalAccessApiKey = useMemo(() => {
+    if (!localAccessCollection) return null;
+    return (
+      (localAccessCollection.apiKeys ?? []).find((item) => item.enabled && item.key) ??
+      (localAccessCollection.apiKeys ?? []).find((item) => item.key) ??
+      {
+        id: 'legacy',
+        name: t('codex.localAccess.defaultKeyName', '默认密钥'),
+        key: localAccessCollection.apiKey,
+        enabled: true,
+        dailyTokenLimit: null,
+        totalTokenLimit: null,
+        createdAt: localAccessCollection.createdAt,
+        updatedAt: localAccessCollection.updatedAt,
+      }
+    );
+  }, [localAccessCollection, t]);
   const localAccessBusy =
     localAccessSaving ||
     localAccessTesting ||
@@ -3164,10 +3181,71 @@ export function CodexAccountsPage() {
     }
   }, [deletingGroup, groupDeleteConfirm, reloadCodexGroups, setGroupDeleteError, t]);
 
-  const handleRotateLocalAccessApiKey = useCallback(async () => {
+  const handleAddLocalAccessApiKey = useCallback(async (payload: {
+    name?: string;
+    dailyTokenLimit?: number | null;
+    totalTokenLimit?: number | null;
+  }) => {
     setLocalAccessSaving(true);
     try {
-      const nextState = await codexLocalAccessService.rotateCodexLocalAccessApiKey();
+      const nextState = await codexLocalAccessService.addCodexLocalAccessApiKey(payload);
+      setLocalAccessState(nextState);
+      setMessage({
+        text: t('codex.localAccess.keyAddSuccess', 'API 服务密钥已新增'),
+      });
+      return nextState;
+    } catch (error) {
+      console.error('Failed to add local access api key:', error);
+      throw new Error(String(error).replace(/^Error:\s*/, ''));
+    } finally {
+      setLocalAccessSaving(false);
+    }
+  }, [setMessage, t]);
+
+  const handleUpdateLocalAccessApiKey = useCallback(async (payload: {
+    keyId: string;
+    name: string;
+    enabled: boolean;
+    dailyTokenLimit?: number | null;
+    totalTokenLimit?: number | null;
+  }) => {
+    setLocalAccessSaving(true);
+    try {
+      const nextState = await codexLocalAccessService.updateCodexLocalAccessApiKey(payload);
+      setLocalAccessState(nextState);
+      setMessage({
+        text: t('codex.localAccess.keySaveSuccess', 'API 服务密钥已更新'),
+      });
+      return nextState;
+    } catch (error) {
+      console.error('Failed to update local access api key:', error);
+      throw new Error(String(error).replace(/^Error:\s*/, ''));
+    } finally {
+      setLocalAccessSaving(false);
+    }
+  }, [setMessage, t]);
+
+  const handleRemoveLocalAccessApiKey = useCallback(async (keyId: string) => {
+    setLocalAccessSaving(true);
+    try {
+      const nextState = await codexLocalAccessService.removeCodexLocalAccessApiKey(keyId);
+      setLocalAccessState(nextState);
+      setMessage({
+        text: t('codex.localAccess.keyRemoveSuccess', 'API 服务密钥已删除'),
+      });
+      return nextState;
+    } catch (error) {
+      console.error('Failed to remove local access api key:', error);
+      throw new Error(String(error).replace(/^Error:\s*/, ''));
+    } finally {
+      setLocalAccessSaving(false);
+    }
+  }, [setMessage, t]);
+
+  const handleRotateLocalAccessApiKey = useCallback(async (keyId?: string) => {
+    setLocalAccessSaving(true);
+    try {
+      const nextState = await codexLocalAccessService.rotateCodexLocalAccessApiKey(keyId);
       setLocalAccessState(nextState);
       setMessage({
         text: t('codex.localAccess.rotateSuccess', 'API 服务密钥已重置'),
@@ -3316,7 +3394,7 @@ export function CodexAccountsPage() {
   }, [localAccessCollection, requestLocalAccessRiskNotice, setMessage, t]);
 
   const handleTestLocalAccess = useCallback(async () => {
-    if (!localAccessCollection) {
+    if (!localAccessCollection || !primaryLocalAccessApiKey?.key) {
       throw new Error(t('codex.localAccess.testUnavailable', '当前 API 服务地址不可用'));
     }
 
@@ -3334,7 +3412,7 @@ export function CodexAccountsPage() {
       const response = await fetch(`${baseUrl}/models`, {
         method: 'GET',
         headers: {
-          Authorization: `Bearer ${localAccessCollection.apiKey}`,
+          Authorization: `Bearer ${primaryLocalAccessApiKey.key}`,
         },
         signal: controller.signal,
       });
@@ -3372,7 +3450,7 @@ export function CodexAccountsPage() {
       }
       setLocalAccessTesting(false);
     }
-  }, [localAccessCollection, resolveLocalAccessBaseUrl, t]);
+  }, [localAccessCollection, primaryLocalAccessApiKey?.key, resolveLocalAccessBaseUrl, t]);
 
   const handleActivateLocalAccess = useCallback(async (options?: { showSuccessMessage?: boolean }) => {
     if (!localAccessCollection) {
@@ -4135,11 +4213,12 @@ export function CodexAccountsPage() {
     const isGridLocalAccessCard = overviewLayoutMode === 'grid';
     const showLocalAccessDetails = isGridLocalAccessCard ? true : localAccessDetailsExpanded;
     const baseUrl = resolveLocalAccessBaseUrl();
+    const primaryKeyValue = primaryLocalAccessApiKey?.key ?? localAccessCollection?.apiKey ?? '';
     const apiKeyDisplay = !localAccessCollection
       ? CODEX_LOCAL_ACCESS_FALLBACK_API_KEY_MASK
       : localAccessKeyVisible
-        ? localAccessCollection.apiKey
-        : `${localAccessCollection.apiKey.slice(0, 10)}••••••••••••`;
+        ? primaryKeyValue
+        : `${primaryKeyValue.slice(0, 10)}••••••••••••`;
     const previewAccounts = localAccessAccounts.slice(0, 3);
     const hiddenCount = Math.max(0, localAccessAccounts.length - previewAccounts.length);
     const showLocalAccessEmptyState = previewAccounts.length === 0;
@@ -4276,7 +4355,7 @@ export function CodexAccountsPage() {
               </div>
               <div className="codex-local-access-row">
                 <span className="codex-local-access-label">{t('codex.localAccess.apiKey', '密钥')}</span>
-                <code className="codex-local-access-code" title={localAccessCollection?.apiKey || '-'}>
+                <code className="codex-local-access-code" title={primaryKeyValue || '-'}>
                   {apiKeyDisplay}
                 </code>
                 <div className="codex-local-access-row-actions">
@@ -4294,7 +4373,7 @@ export function CodexAccountsPage() {
                   <button
                     type="button"
                     className="folder-icon-btn"
-                    onClick={() => void handleCopyLocalAccessValue('apiKey', localAccessCollection?.apiKey || '')}
+                    onClick={() => void handleCopyLocalAccessValue('apiKey', primaryKeyValue)}
                     title={t('common.copy', '复制')}
                     disabled={!localAccessCollection}
                   >
@@ -6532,6 +6611,9 @@ export function CodexAccountsPage() {
           onUpdatePort={handleUpdateLocalAccessPort}
           onUpdateRoutingStrategy={handleUpdateLocalAccessRoutingStrategy}
           onUpdateRestrictFreeModels={handleUpdateRestrictFreeModels}
+          onAddApiKey={handleAddLocalAccessApiKey}
+          onUpdateApiKey={handleUpdateLocalAccessApiKey}
+          onRemoveApiKey={handleRemoveLocalAccessApiKey}
           onRotateApiKey={handleRotateLocalAccessApiKey}
           onKillPort={handleKillLocalAccessPort}
           onToggleEnabled={handleToggleLocalAccessEnabled}

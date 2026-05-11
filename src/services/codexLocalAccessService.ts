@@ -25,8 +25,34 @@ export async function removeCodexLocalAccessAccount(
   return await invoke('codex_local_access_remove_account', { accountId });
 }
 
-export async function rotateCodexLocalAccessApiKey(): Promise<CodexLocalAccessState> {
-  return await invoke('codex_local_access_rotate_api_key');
+export async function addCodexLocalAccessApiKey(payload: {
+  name?: string;
+  dailyTokenLimit?: number | null;
+  totalTokenLimit?: number | null;
+}): Promise<CodexLocalAccessState> {
+  return await invoke('codex_local_access_add_api_key', payload);
+}
+
+export async function updateCodexLocalAccessApiKey(payload: {
+  keyId: string;
+  name: string;
+  enabled: boolean;
+  dailyTokenLimit?: number | null;
+  totalTokenLimit?: number | null;
+}): Promise<CodexLocalAccessState> {
+  return await invoke('codex_local_access_update_api_key', payload);
+}
+
+export async function removeCodexLocalAccessApiKey(
+  keyId: string,
+): Promise<CodexLocalAccessState> {
+  return await invoke('codex_local_access_remove_api_key', { keyId });
+}
+
+export async function rotateCodexLocalAccessApiKey(
+  keyId?: string,
+): Promise<CodexLocalAccessState> {
+  return await invoke('codex_local_access_rotate_api_key', { keyId });
 }
 
 export async function clearCodexLocalAccessStats(): Promise<CodexLocalAccessState> {

@@ -21,12 +21,40 @@ fn default_restrict_free_accounts() -> bool {
     false
 }
 
+fn default_api_key_enabled() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexLocalAccessApiKey {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub key: String,
+    #[serde(default = "default_api_key_enabled")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub daily_token_limit: Option<u64>,
+    #[serde(default)]
+    pub total_token_limit: Option<u64>,
+    #[serde(default)]
+    pub created_at: i64,
+    #[serde(default)]
+    pub updated_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CodexLocalAccessCollection {
     pub enabled: bool,
     pub port: u16,
+    #[serde(default)]
     pub api_key: String,
+    #[serde(default)]
+    pub api_keys: Vec<CodexLocalAccessApiKey>,
     #[serde(default)]
     pub routing_strategy: CodexLocalAccessRoutingStrategy,
     #[serde(default = "default_restrict_free_accounts")]
@@ -74,6 +102,17 @@ pub struct CodexLocalAccessAccountStats {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct CodexLocalAccessKeyStats {
+    pub key_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub usage: CodexLocalAccessUsageStats,
+    #[serde(default)]
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct CodexLocalAccessStatsWindow {
     #[serde(default)]
     pub since: i64,
@@ -83,6 +122,8 @@ pub struct CodexLocalAccessStatsWindow {
     pub totals: CodexLocalAccessUsageStats,
     #[serde(default)]
     pub accounts: Vec<CodexLocalAccessAccountStats>,
+    #[serde(default)]
+    pub keys: Vec<CodexLocalAccessKeyStats>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -94,6 +135,10 @@ pub struct CodexLocalAccessUsageEvent {
     pub account_id: String,
     #[serde(default)]
     pub email: String,
+    #[serde(default)]
+    pub api_key_id: String,
+    #[serde(default)]
+    pub api_key_name: String,
     #[serde(default)]
     pub success: bool,
     #[serde(default)]
@@ -122,6 +167,8 @@ pub struct CodexLocalAccessStats {
     #[serde(default)]
     pub accounts: Vec<CodexLocalAccessAccountStats>,
     #[serde(default)]
+    pub keys: Vec<CodexLocalAccessKeyStats>,
+    #[serde(default)]
     pub daily: CodexLocalAccessStatsWindow,
     #[serde(default)]
     pub weekly: CodexLocalAccessStatsWindow,
@@ -138,6 +185,8 @@ pub struct CodexLocalAccessState {
     pub running: bool,
     pub api_port_url: Option<String>,
     pub base_url: Option<String>,
+    pub external_api_port_url: Option<String>,
+    pub external_base_url: Option<String>,
     pub model_ids: Vec<String>,
     pub last_error: Option<String>,
     pub member_count: usize,

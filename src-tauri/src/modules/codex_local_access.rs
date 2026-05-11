@@ -1,8 +1,9 @@
 use crate::models::codex::{CodexAccount, CodexApiProviderMode};
 use crate::models::codex_local_access::{
-    CodexLocalAccessAccountStats, CodexLocalAccessCollection, CodexLocalAccessPortCleanupResult,
-    CodexLocalAccessRoutingStrategy, CodexLocalAccessState, CodexLocalAccessStats,
-    CodexLocalAccessStatsWindow, CodexLocalAccessUsageEvent, CodexLocalAccessUsageStats,
+    CodexLocalAccessAccountStats, CodexLocalAccessApiKey, CodexLocalAccessCollection,
+    CodexLocalAccessKeyStats, CodexLocalAccessPortCleanupResult, CodexLocalAccessRoutingStrategy,
+    CodexLocalAccessState, CodexLocalAccessStats, CodexLocalAccessStatsWindow,
+    CodexLocalAccessUsageEvent, CodexLocalAccessUsageStats,
 };
 use crate::modules::atomic_write::write_string_atomic;
 use crate::modules::{codex_account, codex_oauth, codex_wakeup, logger, process};
@@ -13,7 +14,7 @@ use reqwest::header::{HeaderName, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TY
 use reqwest::{Client, Method, StatusCode};
 use serde_json::{json, Map, Value};
 use std::collections::{HashMap, HashSet};
-use std::net::TcpListener as StdTcpListener;
+use std::net::{TcpListener as StdTcpListener, UdpSocket};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
@@ -158,6 +159,14 @@ struct ProxyDispatchError {
     message: String,
     account_id: Option<String>,
     account_email: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct AuthenticatedLocalApiKey {
+    id: String,
+    name: String,
+    daily_token_limit: Option<u64>,
+    total_token_limit: Option<u64>,
 }
 
 struct ResponseUsageCollector {
@@ -2626,23 +2635,27 @@ fn empty_stats_snapshot() -> CodexLocalAccessStats {
         updated_at: now,
         totals: CodexLocalAccessUsageStats::default(),
         accounts: Vec::new(),
+        keys: Vec::new(),
         daily: CodexLocalAccessStatsWindow {
             since: day_since,
             updated_at: now,
             totals: CodexLocalAccessUsageStats::default(),
             accounts: Vec::new(),
+            keys: Vec::new(),
         },
         weekly: CodexLocalAccessStatsWindow {
             since: week_since,
             updated_at: now,
             totals: CodexLocalAccessUsageStats::default(),
             accounts: Vec::new(),
+            keys: Vec::new(),
         },
         monthly: CodexLocalAccessStatsWindow {
             since: month_since,
             updated_at: now,
             totals: CodexLocalAccessUsageStats::default(),
             accounts: Vec::new(),
+            keys: Vec::new(),
         },
         events: Vec::new(),
     }
@@ -2654,6 +2667,7 @@ fn empty_stats_window(since: i64, updated_at: i64) -> CodexLocalAccessStatsWindo
         updated_at,
         totals: CodexLocalAccessUsageStats::default(),
         accounts: Vec::new(),
+        keys: Vec::new(),
     }
 }
 
@@ -2668,6 +2682,17 @@ fn sort_usage_accounts(accounts: &mut [CodexLocalAccessAccountStats]) {
     });
 }
 
+fn sort_usage_keys(keys: &mut [CodexLocalAccessKeyStats]) {
+    keys.sort_by(|left, right| {
+        right
+            .usage
+            .request_count
+            .cmp(&left.usage.request_count)
+            .then_with(|| right.updated_at.cmp(&left.updated_at))
+            .then_with(|| left.key_id.cmp(&right.key_id))
+    });
+}
+
 fn trim_recent_events(events: &mut Vec<CodexLocalAccessUsageEvent>, month_since: i64) {
     events.retain(|event| event.timestamp > 0 && event.timestamp >= month_since);
     events.sort_by_key(|event| event.timestamp);
@@ -2678,6 +2703,8 @@ fn append_usage_event(
     now: i64,
     account_id: Option<&str>,
     account_email: Option<&str>,
+    api_key_id: Option<&str>,
+    api_key_name: Option<&str>,
     success: bool,
     latency_ms: u64,
     usage: Option<&UsageCapture>,
@@ -2687,6 +2714,8 @@ fn append_usage_event(
         timestamp: now,
         account_id: account_id.unwrap_or_default().trim().to_string(),
         email: account_email.unwrap_or_default().trim().to_string(),
+        api_key_id: api_key_id.unwrap_or_default().trim().to_string(),
+        api_key_name: api_key_name.unwrap_or_default().trim().to_string(),
         success,
         latency_ms,
         input_tokens: usage.input_tokens,
@@ -2723,6 +2752,15 @@ fn apply_usage_event_to_window(
         Some(&usage),
         event.timestamp,
     );
+    upsert_key_usage_stats(
+        &mut window.keys,
+        Some(event.api_key_id.as_str()),
+        Some(event.api_key_name.as_str()),
+        event.success,
+        event.latency_ms,
+        Some(&usage),
+        event.timestamp,
+    );
     window.updated_at = window.updated_at.max(event.timestamp);
 }
 
@@ -2752,6 +2790,9 @@ fn recompute_time_windows(stats: &mut CodexLocalAccessStats, now: i64) {
     sort_usage_accounts(&mut daily.accounts);
     sort_usage_accounts(&mut weekly.accounts);
     sort_usage_accounts(&mut monthly.accounts);
+    sort_usage_keys(&mut daily.keys);
+    sort_usage_keys(&mut weekly.keys);
+    sort_usage_keys(&mut monthly.keys);
 
     stats.daily = daily;
     stats.weekly = weekly;
@@ -2764,6 +2805,27 @@ fn build_api_port_url(port: u16) -> String {
 
 fn build_base_url(port: u16) -> String {
     format!("http://{CODEX_LOCAL_ACCESS_URL_HOST}:{port}/v1")
+}
+
+fn resolve_current_ip_for_external_access() -> Option<String> {
+    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    let addr = socket.local_addr().ok()?;
+    let ip = addr.ip();
+    if ip.is_loopback() || ip.is_unspecified() {
+        None
+    } else {
+        Some(ip.to_string())
+    }
+}
+
+fn build_external_api_port_url(port: u16) -> Option<String> {
+    resolve_current_ip_for_external_access()
+        .map(|host| format!("http://{host}:{port}{CHAT_COMPLETIONS_PATH}"))
+}
+
+fn build_external_base_url(port: u16) -> Option<String> {
+    resolve_current_ip_for_external_access().map(|host| format!("http://{host}:{port}/v1"))
 }
 
 fn build_runtime_account(base_url: String, api_key: String) -> CodexAccount {
@@ -2787,6 +2849,49 @@ fn generate_local_api_key() -> String {
         .map(char::from)
         .collect();
     format!("agt_codex_{}", suffix)
+}
+
+fn generate_local_api_key_id() -> String {
+    let suffix: String = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(12)
+        .map(char::from)
+        .collect();
+    format!("key_{}", suffix)
+}
+
+fn sanitize_token_limit(limit: Option<u64>) -> Option<u64> {
+    limit.filter(|value| *value > 0)
+}
+
+fn default_local_access_api_key(api_key: String, now: i64) -> CodexLocalAccessApiKey {
+    CodexLocalAccessApiKey {
+        id: generate_local_api_key_id(),
+        name: "Default".to_string(),
+        key: api_key,
+        enabled: true,
+        daily_token_limit: None,
+        total_token_limit: None,
+        created_at: now,
+        updated_at: now,
+    }
+}
+
+fn default_local_access_collection() -> Result<CodexLocalAccessCollection, String> {
+    let now = now_ms();
+    let api_key = generate_local_api_key();
+    Ok(CodexLocalAccessCollection {
+        enabled: false,
+        port: allocate_random_local_port()?,
+        api_key: api_key.clone(),
+        api_keys: vec![default_local_access_api_key(api_key, now)],
+        routing_strategy: CodexLocalAccessRoutingStrategy::default(),
+        restrict_free_accounts: false,
+        restrict_free_models: Vec::new(),
+        account_ids: Vec::new(),
+        created_at: now,
+        updated_at: now,
+    })
 }
 
 fn allocate_random_local_port() -> Result<u16, String> {
@@ -2827,6 +2932,7 @@ fn normalize_stats(stats: &mut CodexLocalAccessStats) {
         stats.updated_at = stats.since;
     }
     sort_usage_accounts(&mut stats.accounts);
+    sort_usage_keys(&mut stats.keys);
     recompute_time_windows(stats, now);
 }
 
@@ -2994,6 +3100,93 @@ fn is_local_access_eligible_account(account: &CodexAccount, restrict_free_accoun
     true
 }
 
+fn primary_local_access_api_key(
+    collection: &CodexLocalAccessCollection,
+) -> Option<&CodexLocalAccessApiKey> {
+    collection
+        .api_keys
+        .iter()
+        .find(|item| item.enabled && !item.key.trim().is_empty())
+        .or_else(|| {
+            collection
+                .api_keys
+                .iter()
+                .find(|item| !item.key.trim().is_empty())
+        })
+}
+
+fn normalize_local_access_api_keys(collection: &mut CodexLocalAccessCollection) -> bool {
+    let now = now_ms();
+    let mut changed = false;
+    let mut next = Vec::new();
+    let mut seen_ids = HashSet::new();
+    let mut seen_keys = HashSet::new();
+
+    for mut item in std::mem::take(&mut collection.api_keys) {
+        item.id = item.id.trim().to_string();
+        item.name = item.name.trim().to_string();
+        item.key = item.key.trim().to_string();
+        if item.key.is_empty() {
+            changed = true;
+            continue;
+        }
+        if item.id.is_empty() || !seen_ids.insert(item.id.clone()) {
+            item.id = generate_local_api_key_id();
+            changed = true;
+        }
+        if item.name.is_empty() {
+            item.name = format!("Key {}", next.len() + 1);
+            changed = true;
+        }
+        if item.created_at <= 0 {
+            item.created_at = now;
+            changed = true;
+        }
+        if item.updated_at <= 0 {
+            item.updated_at = now;
+            changed = true;
+        }
+        let daily_token_limit = sanitize_token_limit(item.daily_token_limit);
+        let total_token_limit = sanitize_token_limit(item.total_token_limit);
+        if item.daily_token_limit != daily_token_limit
+            || item.total_token_limit != total_token_limit
+        {
+            changed = true;
+        }
+        item.daily_token_limit = daily_token_limit;
+        item.total_token_limit = total_token_limit;
+        if !seen_keys.insert(item.key.clone()) {
+            changed = true;
+            continue;
+        }
+        next.push(item);
+    }
+
+    if next.is_empty() {
+        let seed_key = collection.api_key.trim();
+        let api_key = if seed_key.is_empty() {
+            generate_local_api_key()
+        } else {
+            seed_key.to_string()
+        };
+        next.push(default_local_access_api_key(api_key, now));
+        changed = true;
+    }
+
+    let primary_key = next
+        .iter()
+        .find(|item| item.enabled)
+        .or_else(|| next.first())
+        .map(|item| item.key.clone())
+        .unwrap_or_default();
+    if collection.api_key != primary_key {
+        collection.api_key = primary_key;
+        changed = true;
+    }
+    collection.api_keys = next;
+    changed
+}
+
 fn sanitize_collection(
     collection: &mut CodexLocalAccessCollection,
 ) -> Result<(bool, HashSet<String>), String> {
@@ -3005,6 +3198,9 @@ fn sanitize_collection(
     }
     if collection.api_key.trim().is_empty() {
         collection.api_key = generate_local_api_key();
+        changed = true;
+    }
+    if normalize_local_access_api_keys(collection) {
         changed = true;
     }
     if collection.created_at <= 0 {
@@ -3059,17 +3255,7 @@ async fn ensure_runtime_loaded_without_start() -> Result<(), String> {
     let mut persist_after_load = false;
 
     if next_collection.is_none() {
-        next_collection = Some(CodexLocalAccessCollection {
-            enabled: false,
-            port: allocate_random_local_port()?,
-            api_key: generate_local_api_key(),
-            routing_strategy: CodexLocalAccessRoutingStrategy::default(),
-            restrict_free_accounts: false,
-            restrict_free_models: Vec::new(),
-            account_ids: Vec::new(),
-            created_at: now_ms(),
-            updated_at: now_ms(),
-        });
+        next_collection = Some(default_local_access_collection()?);
         persist_after_load = true;
     }
 
@@ -3316,9 +3502,48 @@ fn upsert_account_usage_stats(
     accounts.push(account_stats);
 }
 
+fn upsert_key_usage_stats(
+    keys: &mut Vec<CodexLocalAccessKeyStats>,
+    key_id: Option<&str>,
+    key_name: Option<&str>,
+    success: bool,
+    latency_ms: u64,
+    usage: Option<&UsageCapture>,
+    updated_at: i64,
+) {
+    let Some(key_id) = key_id.map(str::trim).filter(|value| !value.is_empty()) else {
+        return;
+    };
+    let normalized_name = key_name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_default()
+        .to_string();
+
+    if let Some(key_stats) = keys.iter_mut().find(|item| item.key_id == key_id) {
+        if !normalized_name.is_empty() {
+            key_stats.name = normalized_name;
+        }
+        key_stats.updated_at = updated_at;
+        apply_usage_stats(&mut key_stats.usage, success, latency_ms, usage);
+        return;
+    }
+
+    let mut key_stats = CodexLocalAccessKeyStats {
+        key_id: key_id.to_string(),
+        name: normalized_name,
+        usage: CodexLocalAccessUsageStats::default(),
+        updated_at,
+    };
+    apply_usage_stats(&mut key_stats.usage, success, latency_ms, usage);
+    keys.push(key_stats);
+}
+
 async fn record_request_stats(
     account_id: Option<&str>,
     account_email: Option<&str>,
+    api_key_id: Option<&str>,
+    api_key_name: Option<&str>,
     success: bool,
     latency_ms: u64,
     usage: Option<UsageCapture>,
@@ -3341,11 +3566,22 @@ async fn record_request_stats(
             usage_ref,
             now,
         );
+        upsert_key_usage_stats(
+            &mut runtime.stats.keys,
+            api_key_id,
+            api_key_name,
+            success,
+            latency_ms,
+            usage_ref,
+            now,
+        );
         append_usage_event(
             &mut runtime.stats.events,
             now,
             account_id,
             account_email,
+            api_key_id,
+            api_key_name,
             success,
             latency_ms,
             usage_ref,
@@ -3369,6 +3605,12 @@ fn build_state_snapshot(runtime: &GatewayRuntime) -> CodexLocalAccessState {
         .as_ref()
         .map(|item| build_api_port_url(item.port));
     let base_url = collection.as_ref().map(|item| build_base_url(item.port));
+    let external_api_port_url = collection
+        .as_ref()
+        .and_then(|item| build_external_api_port_url(item.port));
+    let external_base_url = collection
+        .as_ref()
+        .and_then(|item| build_external_base_url(item.port));
     let model_ids = supported_codex_model_ids();
     let mut stats = runtime.stats.clone();
     stats.events.clear();
@@ -3378,6 +3620,8 @@ fn build_state_snapshot(runtime: &GatewayRuntime) -> CodexLocalAccessState {
         running: runtime.running,
         api_port_url,
         base_url,
+        external_api_port_url,
+        external_base_url,
         model_ids,
         last_error: runtime.last_error.clone(),
         member_count,
@@ -3412,7 +3656,10 @@ pub async fn activate_local_access_for_dir(
         .base_url
         .clone()
         .unwrap_or_else(|| build_base_url(collection.port));
-    let runtime_account = build_runtime_account(base_url, collection.api_key.clone());
+    let api_key = primary_local_access_api_key(&collection)
+        .map(|item| item.key.clone())
+        .unwrap_or_else(|| collection.api_key.clone());
+    let runtime_account = build_runtime_account(base_url, api_key);
     codex_account::write_account_bundle_to_dir(profile_dir, &runtime_account)?;
     Ok(state)
 }
@@ -3428,17 +3675,7 @@ pub async fn save_local_access_accounts(
         runtime
             .collection
             .clone()
-            .unwrap_or(CodexLocalAccessCollection {
-                enabled: false,
-                port: allocate_random_local_port()?,
-                api_key: generate_local_api_key(),
-                routing_strategy: CodexLocalAccessRoutingStrategy::default(),
-                restrict_free_accounts: false,
-                restrict_free_models: Vec::new(),
-                account_ids: Vec::new(),
-                created_at: now_ms(),
-                updated_at: now_ms(),
-            })
+            .unwrap_or(default_local_access_collection()?)
     };
 
     let valid_account_ids: HashSet<String> = codex_account::list_accounts_checked()?
@@ -3571,7 +3808,11 @@ pub async fn remove_local_access_account(
     snapshot_state().await
 }
 
-pub async fn rotate_local_access_api_key() -> Result<CodexLocalAccessState, String> {
+pub async fn add_local_access_api_key(
+    name: Option<String>,
+    daily_token_limit: Option<u64>,
+    total_token_limit: Option<u64>,
+) -> Result<CodexLocalAccessState, String> {
     ensure_runtime_loaded().await?;
 
     let maybe_collection = {
@@ -3583,8 +3824,184 @@ pub async fn rotate_local_access_api_key() -> Result<CodexLocalAccessState, Stri
         return Err("本地接入集合尚未创建".to_string());
     };
 
-    collection.api_key = generate_local_api_key();
+    let now = now_ms();
+    let name = name.unwrap_or_default().trim().to_string();
+    let key_name = if name.is_empty() {
+        format!("Key {}", collection.api_keys.len() + 1)
+    } else {
+        name
+    };
+    collection.api_keys.push(CodexLocalAccessApiKey {
+        id: generate_local_api_key_id(),
+        name: key_name,
+        key: generate_local_api_key(),
+        enabled: true,
+        daily_token_limit: sanitize_token_limit(daily_token_limit),
+        total_token_limit: sanitize_token_limit(total_token_limit),
+        created_at: now,
+        updated_at: now,
+    });
     collection.updated_at = now_ms();
+    sanitize_collection(&mut collection)?;
+    save_collection_to_disk(&collection)?;
+
+    {
+        let mut runtime = gateway_runtime().lock().await;
+        sync_runtime_collection(&mut runtime, collection);
+    }
+
+    snapshot_state().await
+}
+
+pub async fn update_local_access_api_key(
+    key_id: &str,
+    name: String,
+    enabled: bool,
+    daily_token_limit: Option<u64>,
+    total_token_limit: Option<u64>,
+) -> Result<CodexLocalAccessState, String> {
+    ensure_runtime_loaded().await?;
+
+    let maybe_collection = {
+        let runtime = gateway_runtime().lock().await;
+        runtime.collection.clone()
+    };
+
+    let Some(mut collection) = maybe_collection else {
+        return Err("本地接入集合尚未创建".to_string());
+    };
+
+    let key_id = key_id.trim();
+    if key_id.is_empty() {
+        return Err("密钥 ID 不能为空".to_string());
+    }
+
+    let enabled_count = collection
+        .api_keys
+        .iter()
+        .filter(|item| item.enabled)
+        .count();
+    let mut found = false;
+    let mut disabling_last_enabled = false;
+    let now = now_ms();
+    for item in &mut collection.api_keys {
+        if item.id != key_id {
+            continue;
+        }
+        found = true;
+        disabling_last_enabled = item.enabled && !enabled && enabled_count <= 1;
+        item.name = name.trim().to_string();
+        if item.name.is_empty() {
+            item.name = "Key".to_string();
+        }
+        item.enabled = enabled;
+        item.daily_token_limit = sanitize_token_limit(daily_token_limit);
+        item.total_token_limit = sanitize_token_limit(total_token_limit);
+        item.updated_at = now;
+        break;
+    }
+
+    if !found {
+        return Err("未找到指定密钥".to_string());
+    }
+    if disabling_last_enabled {
+        return Err("至少需要保留一个启用的密钥".to_string());
+    }
+
+    collection.updated_at = now;
+    sanitize_collection(&mut collection)?;
+    save_collection_to_disk(&collection)?;
+
+    {
+        let mut runtime = gateway_runtime().lock().await;
+        sync_runtime_collection(&mut runtime, collection);
+    }
+
+    snapshot_state().await
+}
+
+pub async fn remove_local_access_api_key(key_id: &str) -> Result<CodexLocalAccessState, String> {
+    ensure_runtime_loaded().await?;
+
+    let maybe_collection = {
+        let runtime = gateway_runtime().lock().await;
+        runtime.collection.clone()
+    };
+
+    let Some(mut collection) = maybe_collection else {
+        return Err("本地接入集合尚未创建".to_string());
+    };
+
+    let key_id = key_id.trim();
+    if key_id.is_empty() {
+        return Err("密钥 ID 不能为空".to_string());
+    }
+    if collection.api_keys.len() <= 1 {
+        return Err("至少需要保留一个密钥".to_string());
+    }
+
+    let removed = collection
+        .api_keys
+        .iter()
+        .find(|item| item.id == key_id)
+        .cloned()
+        .ok_or_else(|| "未找到指定密钥".to_string())?;
+    collection.api_keys.retain(|item| item.id != key_id);
+    if removed.enabled && !collection.api_keys.iter().any(|item| item.enabled) {
+        return Err("至少需要保留一个启用的密钥".to_string());
+    }
+
+    collection.updated_at = now_ms();
+    sanitize_collection(&mut collection)?;
+    save_collection_to_disk(&collection)?;
+
+    {
+        let mut runtime = gateway_runtime().lock().await;
+        sync_runtime_collection(&mut runtime, collection);
+    }
+
+    snapshot_state().await
+}
+
+pub async fn rotate_local_access_api_key(
+    key_id: Option<&str>,
+) -> Result<CodexLocalAccessState, String> {
+    ensure_runtime_loaded().await?;
+
+    let maybe_collection = {
+        let runtime = gateway_runtime().lock().await;
+        runtime.collection.clone()
+    };
+
+    let Some(mut collection) = maybe_collection else {
+        return Err("本地接入集合尚未创建".to_string());
+    };
+
+    let target_key_id = key_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .or_else(|| primary_local_access_api_key(&collection).map(|item| item.id.clone()))
+        .ok_or_else(|| "本地接入集合暂无密钥".to_string())?;
+
+    let now = now_ms();
+    let mut found = false;
+    for item in &mut collection.api_keys {
+        if item.id != target_key_id {
+            continue;
+        }
+        item.key = generate_local_api_key();
+        item.updated_at = now;
+        found = true;
+        break;
+    }
+
+    if !found {
+        return Err("未找到指定密钥".to_string());
+    }
+
+    collection.updated_at = now;
+    sanitize_collection(&mut collection)?;
     save_collection_to_disk(&collection)?;
 
     {
@@ -3850,6 +4267,68 @@ fn extract_local_api_key(headers: &HashMap<String, String>) -> Option<String> {
         .get("x-api-key")
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+}
+
+fn authenticate_local_api_key(
+    collection: &CodexLocalAccessCollection,
+    raw_api_key: &str,
+) -> Option<AuthenticatedLocalApiKey> {
+    let raw_api_key = raw_api_key.trim();
+    if raw_api_key.is_empty() {
+        return None;
+    }
+    collection
+        .api_keys
+        .iter()
+        .find(|item| item.enabled && item.key.trim() == raw_api_key)
+        .map(|item| AuthenticatedLocalApiKey {
+            id: item.id.clone(),
+            name: item.name.clone(),
+            daily_token_limit: item.daily_token_limit,
+            total_token_limit: item.total_token_limit,
+        })
+}
+
+fn find_key_usage_total(keys: &[CodexLocalAccessKeyStats], key_id: &str) -> u64 {
+    keys.iter()
+        .find(|item| item.key_id == key_id)
+        .map(|item| item.usage.total_tokens)
+        .unwrap_or(0)
+}
+
+fn check_local_api_key_quota(
+    stats: &CodexLocalAccessStats,
+    api_key: &AuthenticatedLocalApiKey,
+) -> Result<(), String> {
+    if let Some(limit) = api_key.daily_token_limit {
+        let used = find_key_usage_total(&stats.daily.keys, &api_key.id);
+        if used >= limit {
+            return Err(format!(
+                "访问密钥 {} 已达到每日 Token 限额（{} / {}）",
+                api_key.name, used, limit
+            ));
+        }
+    }
+
+    if let Some(limit) = api_key.total_token_limit {
+        let used = find_key_usage_total(&stats.keys, &api_key.id);
+        if used >= limit {
+            return Err(format!(
+                "访问密钥 {} 已达到总 Token 限额（{} / {}）",
+                api_key.name, used, limit
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+async fn check_local_api_key_quota_runtime(
+    api_key: &AuthenticatedLocalApiKey,
+) -> Result<(), String> {
+    let mut runtime = gateway_runtime().lock().await;
+    normalize_stats(&mut runtime.stats);
+    check_local_api_key_quota(&runtime.stats, api_key)
 }
 
 fn is_local_models_request(target: &str) -> bool {
@@ -5604,11 +6083,11 @@ async fn handle_connection(
         return Ok(());
     };
 
-    let state = {
+    let (collection, running) = {
         let runtime = gateway_runtime().lock().await;
-        build_state_snapshot(&runtime)
+        (runtime.collection.clone(), runtime.running)
     };
-    let Some(collection) = state.collection else {
+    let Some(collection) = collection else {
         write_json_error_response(
             &mut stream,
             Some(&addr),
@@ -5624,7 +6103,7 @@ async fn handle_connection(
         return Ok(());
     };
 
-    if !collection.enabled || !state.running {
+    if !collection.enabled || !running {
         write_json_error_response(
             &mut stream,
             Some(&addr),
@@ -5640,7 +6119,7 @@ async fn handle_connection(
         return Ok(());
     }
 
-    if api_key != collection.api_key {
+    let Some(authenticated_api_key) = authenticate_local_api_key(&collection, &api_key) else {
         write_json_error_response(
             &mut stream,
             Some(&addr),
@@ -5654,7 +6133,7 @@ async fn handle_connection(
         )
         .await?;
         return Ok(());
-    }
+    };
 
     if is_local_models_request(&parsed.target) {
         if collection.account_ids.is_empty() {
@@ -5682,9 +6161,43 @@ async fn handle_connection(
     }
 
     let started_at = Instant::now();
+    if let Err(err) = check_local_api_key_quota_runtime(&authenticated_api_key).await {
+        let latency_ms = started_at.elapsed().as_millis() as u64;
+        write_json_error_response(
+            &mut stream,
+            Some(&addr),
+            Some(&parsed),
+            429,
+            "Too Many Requests",
+            err.as_str(),
+            None,
+            None,
+            Some(latency_ms),
+        )
+        .await?;
+        if let Err(stats_err) = record_request_stats(
+            None,
+            None,
+            Some(authenticated_api_key.id.as_str()),
+            Some(authenticated_api_key.name.as_str()),
+            false,
+            latency_ms,
+            None,
+        )
+        .await
+        {
+            logger::log_codex_api_warn(&format!(
+                "[CodexLocalAccess] 写入配额失败统计失败: {}",
+                stats_err
+            ));
+        }
+        return Ok(());
+    }
+
     let (prepared_request, response_adapter) = match prepare_gateway_request(parsed) {
         Ok(prepared) => prepared,
         Err(err) => {
+            let latency_ms = started_at.elapsed().as_millis() as u64;
             write_json_error_response(
                 &mut stream,
                 Some(&addr),
@@ -5694,9 +6207,25 @@ async fn handle_connection(
                 err.as_str(),
                 None,
                 None,
-                Some(started_at.elapsed().as_millis() as u64),
+                Some(latency_ms),
             )
             .await?;
+            if let Err(stats_err) = record_request_stats(
+                None,
+                None,
+                Some(authenticated_api_key.id.as_str()),
+                Some(authenticated_api_key.name.as_str()),
+                false,
+                latency_ms,
+                None,
+            )
+            .await
+            {
+                logger::log_codex_api_warn(&format!(
+                    "[CodexLocalAccess] 写入请求解析失败统计失败: {}",
+                    stats_err
+                ));
+            }
             return Ok(());
         }
     };
@@ -5712,6 +6241,8 @@ async fn handle_connection(
             if let Err(err) = record_request_stats(
                 Some(success.account_id.as_str()),
                 Some(success.account_email.as_str()),
+                Some(authenticated_api_key.id.as_str()),
+                Some(authenticated_api_key.name.as_str()),
                 true,
                 latency_ms,
                 response_capture.usage,
@@ -5759,6 +6290,8 @@ async fn handle_connection(
             if let Err(err) = record_request_stats(
                 account_id.as_deref(),
                 account_email.as_deref(),
+                Some(authenticated_api_key.id.as_str()),
+                Some(authenticated_api_key.name.as_str()),
                 false,
                 latency_ms,
                 None,
@@ -5778,18 +6311,165 @@ async fn handle_connection(
 #[cfg(test)]
 mod tests {
     use super::{
+        append_usage_event, authenticate_local_api_key,
         build_chat_completion_payload, build_chat_completion_stream_body, build_images_api_payload,
         build_local_models_response, build_ordered_account_ids, build_request_routing_hint,
-        extract_usage_capture, is_responses_completion_event, parse_codex_retry_after,
-        parse_responses_payload_from_upstream, prepare_gateway_request,
+        check_local_api_key_quota, empty_stats_snapshot, extract_usage_capture,
+        is_responses_completion_event, normalize_local_access_api_keys, normalize_stats, now_ms,
+        parse_codex_retry_after, parse_responses_payload_from_upstream, prepare_gateway_request,
         resolve_supported_model_alias, should_retry_single_account_upstream_status,
-        should_treat_response_as_stream, should_try_next_account, GatewayResponseAdapter,
-        ParsedRequest, ResponseUsageCollector,
+        should_treat_response_as_stream, should_try_next_account, AuthenticatedLocalApiKey,
+        GatewayResponseAdapter, ParsedRequest, ResponseUsageCollector, UsageCapture,
+    };
+    use crate::models::codex_local_access::{
+        CodexLocalAccessApiKey, CodexLocalAccessCollection, CodexLocalAccessKeyStats,
+        CodexLocalAccessRoutingStrategy, CodexLocalAccessUsageStats,
     };
     use reqwest::StatusCode;
     use serde_json::{json, Value};
     use std::collections::HashMap;
     use tokio::time::Duration;
+
+    fn test_collection(api_keys: Vec<CodexLocalAccessApiKey>) -> CodexLocalAccessCollection {
+        CodexLocalAccessCollection {
+            enabled: true,
+            port: 12345,
+            api_key: "legacy-key".to_string(),
+            api_keys,
+            routing_strategy: CodexLocalAccessRoutingStrategy::Auto,
+            restrict_free_accounts: false,
+            restrict_free_models: Vec::new(),
+            account_ids: Vec::new(),
+            created_at: 1,
+            updated_at: 1,
+        }
+    }
+
+    fn test_api_key(
+        id: &str,
+        name: &str,
+        key: &str,
+        enabled: bool,
+        daily_token_limit: Option<u64>,
+        total_token_limit: Option<u64>,
+    ) -> CodexLocalAccessApiKey {
+        CodexLocalAccessApiKey {
+            id: id.to_string(),
+            name: name.to_string(),
+            key: key.to_string(),
+            enabled,
+            daily_token_limit,
+            total_token_limit,
+            created_at: 1,
+            updated_at: 1,
+        }
+    }
+
+    #[test]
+    fn migrates_legacy_local_access_key_into_api_keys() {
+        let mut collection = test_collection(Vec::new());
+        collection.api_key = "legacy-access-key".to_string();
+
+        assert!(normalize_local_access_api_keys(&mut collection));
+        assert_eq!(collection.api_keys.len(), 1);
+        assert_eq!(collection.api_keys[0].key, "legacy-access-key");
+        assert_eq!(collection.api_key, "legacy-access-key");
+        assert!(collection.api_keys[0].enabled);
+    }
+
+    #[test]
+    fn authenticates_enabled_local_access_api_key_only() {
+        let collection = test_collection(vec![
+            test_api_key("key-a", "A", "secret-a", true, None, None),
+            test_api_key("key-b", "B", "secret-b", false, None, None),
+        ]);
+
+        let authenticated =
+            authenticate_local_api_key(&collection, " secret-a ").expect("enabled key should match");
+        assert_eq!(authenticated.id, "key-a");
+        assert_eq!(authenticated.name, "A");
+        assert!(authenticate_local_api_key(&collection, "secret-b").is_none());
+        assert!(authenticate_local_api_key(&collection, "missing").is_none());
+    }
+
+    #[test]
+    fn enforces_daily_and_total_token_limits_per_key() {
+        let api_key = AuthenticatedLocalApiKey {
+            id: "key-a".to_string(),
+            name: "A".to_string(),
+            daily_token_limit: Some(100),
+            total_token_limit: Some(300),
+        };
+        let mut stats = empty_stats_snapshot();
+        stats.daily.keys.push(CodexLocalAccessKeyStats {
+            key_id: "key-a".to_string(),
+            name: "A".to_string(),
+            usage: CodexLocalAccessUsageStats {
+                total_tokens: 100,
+                ..CodexLocalAccessUsageStats::default()
+            },
+            updated_at: 1,
+        });
+
+        assert!(check_local_api_key_quota(&stats, &api_key)
+            .expect_err("daily limit should block")
+            .contains("每日 Token 限额"));
+
+        stats.daily.keys[0].usage.total_tokens = 99;
+        stats.keys.push(CodexLocalAccessKeyStats {
+            key_id: "key-a".to_string(),
+            name: "A".to_string(),
+            usage: CodexLocalAccessUsageStats {
+                total_tokens: 300,
+                ..CodexLocalAccessUsageStats::default()
+            },
+            updated_at: 1,
+        });
+
+        assert!(check_local_api_key_quota(&stats, &api_key)
+            .expect_err("total limit should block")
+            .contains("总 Token 限额"));
+    }
+
+    #[test]
+    fn recomputes_window_stats_per_api_key_from_events() {
+        let mut stats = empty_stats_snapshot();
+        stats.events.clear();
+        let now = now_ms();
+        let usage = UsageCapture {
+            input_tokens: 7,
+            output_tokens: 5,
+            total_tokens: 12,
+            cached_tokens: 2,
+            reasoning_tokens: 3,
+        };
+
+        append_usage_event(
+            &mut stats.events,
+            now,
+            Some("acc-a"),
+            Some("a@example.com"),
+            Some("key-a"),
+            Some("Client A"),
+            true,
+            42,
+            Some(&usage),
+        );
+        normalize_stats(&mut stats);
+
+        let key_stats = stats
+            .daily
+            .keys
+            .iter()
+            .find(|item| item.key_id == "key-a")
+            .expect("daily key stats should be present");
+        assert_eq!(key_stats.name, "Client A");
+        assert_eq!(key_stats.usage.request_count, 1);
+        assert_eq!(key_stats.usage.success_count, 1);
+        assert_eq!(key_stats.usage.total_tokens, 12);
+        assert_eq!(key_stats.usage.cached_tokens, 2);
+        assert_eq!(key_stats.usage.reasoning_tokens, 3);
+    }
 
     #[test]
     fn extracts_usage_from_codex_response_completed_payload() {
