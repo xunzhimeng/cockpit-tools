@@ -14,8 +14,7 @@ const DEFAULT_INSTANCE_ID: &str = "__default__";
 const DEFAULT_INSTANCE_NAME: &str = "默认实例";
 const STATE_DB_FILE: &str = "state_5.sqlite";
 const SESSION_INDEX_FILE: &str = "session_index.jsonl";
-const GLOBAL_STATE_FILE: &str = ".codex-global-state.json";
-const BACKUP_FILE_NAMES: [&str; 3] = [STATE_DB_FILE, SESSION_INDEX_FILE, GLOBAL_STATE_FILE];
+const BACKUP_FILE_NAMES: [&str; 2] = [STATE_DB_FILE, SESSION_INDEX_FILE];
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -371,10 +370,6 @@ fn sync_missing_threads_to_instance(
         .map_err(|error| format!("提交目标实例事务失败 ({}): {}", target.name, error))?;
 
     append_session_index_entries(&target.data_dir, &existing_index_ids, snapshots)?;
-    update_global_state(
-        &target.data_dir,
-        snapshots.iter().map(|snapshot| snapshot.cwd.as_str()),
-    )?;
 
     Ok(backup_dir)
 }
@@ -575,68 +570,6 @@ fn append_session_index_entries(
     Ok(())
 }
 
-fn update_global_state<'a>(
-    root_dir: &Path,
-    workspaces: impl Iterator<Item = &'a str>,
-) -> Result<(), String> {
-    let path = root_dir.join(GLOBAL_STATE_FILE);
-    let mut value = if path.exists() {
-        let raw = fs::read_to_string(&path)
-            .map_err(|error| format!("读取全局状态失败 ({}): {}", path.display(), error))?;
-        serde_json::from_str::<JsonValue>(&raw).unwrap_or_else(|_| json!({}))
-    } else {
-        json!({})
-    };
-
-    if !value.is_object() {
-        value = json!({});
-    }
-
-    let Some(object) = value.as_object_mut() else {
-        return Err("全局状态文件格式无效".to_string());
-    };
-
-    let unique_workspaces = workspaces
-        .filter(|item| !item.trim().is_empty())
-        .map(|item| item.to_string())
-        .collect::<HashSet<_>>();
-
-    merge_string_array(object, "project-order", &unique_workspaces);
-    merge_string_array(object, "electron-saved-workspace-roots", &unique_workspaces);
-
-    let serialized = serde_json::to_string_pretty(&value)
-        .map_err(|error| format!("序列化全局状态失败: {}", error))?;
-    fs::write(&path, format!("{}\n", serialized))
-        .map_err(|error| format!("写入全局状态失败 ({}): {}", path.display(), error))?;
-    Ok(())
-}
-
-fn merge_string_array(
-    object: &mut serde_json::Map<String, JsonValue>,
-    key: &str,
-    additions: &HashSet<String>,
-) {
-    let mut values = object
-        .get(key)
-        .and_then(JsonValue::as_array)
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|item| item.as_str().map(|value| value.to_string()))
-        .collect::<Vec<_>>();
-
-    for addition in additions {
-        if !values.contains(addition) {
-            values.push(addition.clone());
-        }
-    }
-
-    object.insert(
-        key.to_string(),
-        JsonValue::Array(values.into_iter().map(JsonValue::String).collect()),
-    );
-}
-
 fn copy_rollout_file(snapshot: &ThreadSnapshot, target_root: &Path) -> Result<PathBuf, String> {
     let relative_path = snapshot
         .rollout_path
@@ -654,6 +587,12 @@ fn copy_rollout_file(snapshot: &ThreadSnapshot, target_root: &Path) -> Result<Pa
         .ok_or_else(|| format!("无法解析目标 rollout 父目录: {}", target_path.display()))?;
     fs::create_dir_all(parent)
         .map_err(|error| format!("创建 rollout 目录失败 ({}): {}", parent.display(), error))?;
+    if target_path.exists() {
+        return Err(format!(
+            "目标 rollout 文件已存在，已跳过以避免覆盖: {}",
+            target_path.display()
+        ));
+    }
     fs::copy(&snapshot.rollout_path, &target_path).map_err(|error| {
         format!(
             "复制 rollout 文件失败 ({} -> {}): {}",

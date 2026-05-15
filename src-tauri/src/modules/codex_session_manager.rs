@@ -1144,6 +1144,13 @@ fn restore_trashed_session_entry(entry: &TrashedSessionEntry) -> Result<(), Stri
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| entry.manifest.session_id.clone());
     let target_rollout_path = entry.manifest.original_rollout_path.clone();
+    if !path_is_within_root(&target_rollout_path, &entry.manifest.instance_root) {
+        return Err(format!(
+            "会话恢复目标路径不在原实例目录下，已拒绝恢复 ({}): {}",
+            session_id,
+            target_rollout_path.display()
+        ));
+    }
     if target_rollout_path.exists() {
         return Err(format!(
             "目标实例中已存在同名会话文件，无法恢复 ({}): {}",
@@ -1204,6 +1211,105 @@ fn restore_trashed_session_entry(entry: &TrashedSessionEntry) -> Result<(), Stri
     }
 
     Ok(())
+}
+
+fn path_is_within_root(path: &Path, root: &Path) -> bool {
+    let normalized_path = normalize_path_for_scope_check(path);
+    let normalized_root = normalize_path_for_scope_check(root);
+    if normalized_path.is_empty() || normalized_root.is_empty() {
+        return false;
+    }
+    normalized_path == normalized_root
+        || normalized_path.starts_with(&format!("{}{}", normalized_root, path_scope_separator()))
+}
+
+#[cfg(target_os = "windows")]
+fn path_scope_separator() -> &'static str {
+    "\\"
+}
+
+#[cfg(not(target_os = "windows"))]
+fn path_scope_separator() -> &'static str {
+    "/"
+}
+
+fn normalize_path_for_scope_check(path: &Path) -> String {
+    let mut value = path.to_string_lossy().trim().to_string();
+    if value.is_empty() {
+        return String::new();
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        value = value.replace('/', "\\");
+        if let Some(stripped) = value.strip_prefix("\\\\?\\") {
+            value = stripped.to_string();
+        }
+        normalize_windows_path_text(&value)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        normalize_posix_path_text(&value.replace('\\', "/"))
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn normalize_windows_path_text(value: &str) -> String {
+    let trimmed = value.trim().trim_end_matches('\\');
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let (prefix, rest) = if trimmed.len() >= 2 && trimmed.as_bytes()[1] == b':' {
+        (trimmed[..2].to_ascii_lowercase(), &trimmed[2..])
+    } else {
+        (String::new(), trimmed)
+    };
+    let mut parts = Vec::new();
+    for part in rest.split('\\') {
+        if part.is_empty() || part == "." {
+            continue;
+        }
+        if part == ".." {
+            parts.pop();
+            continue;
+        }
+        parts.push(part.to_ascii_lowercase());
+    }
+    if prefix.is_empty() {
+        parts.join("\\")
+    } else if parts.is_empty() {
+        prefix
+    } else {
+        format!("{}\\{}", prefix, parts.join("\\"))
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn normalize_posix_path_text(value: &str) -> String {
+    let trimmed = value.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let absolute = trimmed.starts_with('/');
+    let mut parts = Vec::new();
+    for part in trimmed.split('/') {
+        if part.is_empty() || part == "." {
+            continue;
+        }
+        if part == ".." {
+            parts.pop();
+            continue;
+        }
+        parts.push(part);
+    }
+    if absolute {
+        format!("/{}", parts.join("/"))
+    } else {
+        parts.join("/")
+    }
 }
 
 fn read_session_index_content(root_dir: &Path) -> Result<Option<String>, String> {

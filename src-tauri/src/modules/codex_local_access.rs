@@ -38,12 +38,18 @@ const UPSTREAM_SEND_RETRY_MAX_DELAY: Duration = Duration::from_millis(1200);
 const SINGLE_ACCOUNT_STATUS_RETRY_ATTEMPTS: usize = 2;
 const SINGLE_ACCOUNT_STATUS_RETRY_BASE_DELAY: Duration = Duration::from_millis(300);
 const SINGLE_ACCOUNT_STATUS_RETRY_MAX_DELAY: Duration = Duration::from_millis(1500);
+const MODEL_CAPACITY_RETRY_ATTEMPTS: usize = 2;
+const MODEL_CAPACITY_RETRY_BASE_DELAY: Duration = Duration::from_millis(700);
+const MODEL_CAPACITY_RETRY_MAX_DELAY: Duration = Duration::from_millis(2500);
 const STATS_FLUSH_INTERVAL: Duration = Duration::from_secs(1);
 const MAX_RETRY_CREDENTIALS_PER_REQUEST: usize = 8;
 const RESPONSE_AFFINITY_TTL_MS: i64 = 24 * 60 * 60 * 1000;
 const MAX_RESPONSE_AFFINITY_BINDINGS: usize = 4096;
+const MODEL_AFFINITY_TTL_MS: i64 = 6 * 60 * 60 * 1000;
+const MAX_MODEL_AFFINITY_BINDINGS: usize = 4096;
 const PREPARED_ACCOUNT_CACHE_TTL_MS: i64 = 30 * 1000;
 const DAY_WINDOW_MS: i64 = 24 * 60 * 60 * 1000;
+const AUTO_EXPIRY_PRIORITY_WINDOW_MS: i64 = 2 * DAY_WINDOW_MS;
 const WEEK_WINDOW_MS: i64 = 7 * DAY_WINDOW_MS;
 const MONTH_WINDOW_MS: i64 = 30 * DAY_WINDOW_MS;
 const GATEWAY_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
@@ -82,6 +88,7 @@ struct GatewayRuntime {
     stats_dirty: bool,
     stats_flush_inflight: bool,
     response_affinity: HashMap<String, ResponseAffinityBinding>,
+    model_affinity: HashMap<String, ModelAffinityBinding>,
     model_cooldowns: HashMap<String, AccountModelCooldown>,
     prepared_accounts: HashMap<String, CachedPreparedAccount>,
     running: bool,
@@ -136,6 +143,12 @@ struct ResponseAffinityBinding {
 }
 
 #[derive(Debug, Clone)]
+struct ModelAffinityBinding {
+    account_id: String,
+    updated_at_ms: i64,
+}
+
+#[derive(Debug, Clone)]
 struct AccountModelCooldown {
     next_retry_at_ms: i64,
 }
@@ -151,6 +164,7 @@ struct ProxyDispatchSuccess {
     upstream: reqwest::Response,
     account_id: String,
     account_email: String,
+    model_key: String,
 }
 
 #[derive(Debug)]
@@ -214,6 +228,8 @@ struct RoutingCandidate {
     is_free_plan: bool,
     plan_rank: Option<i32>,
     remaining_quota: Option<i32>,
+    hourly_remaining: Option<i32>,
+    weekly_remaining: Option<i32>,
     subscription_expiry_ms: Option<i64>,
     paid_subscription_expiry_ms: Option<i64>,
 }
@@ -2390,6 +2406,22 @@ fn resolve_remaining_quota(account: &CodexAccount) -> Option<i32> {
     percentages.into_iter().min()
 }
 
+fn resolve_hourly_remaining(account: &CodexAccount) -> Option<i32> {
+    let quota = account.quota.as_ref()?;
+    if !quota.hourly_window_present.unwrap_or(true) {
+        return None;
+    }
+    Some(quota.hourly_percentage.clamp(0, 100))
+}
+
+fn resolve_weekly_remaining(account: &CodexAccount) -> Option<i32> {
+    let quota = account.quota.as_ref()?;
+    if !quota.weekly_window_present.unwrap_or(true) {
+        return None;
+    }
+    Some(quota.weekly_percentage.clamp(0, 100))
+}
+
 fn parse_subscription_expiry_ms(account: &CodexAccount) -> Option<i64> {
     let raw = account.subscription_active_until.as_deref()?.trim();
     if raw.is_empty() {
@@ -2421,6 +2453,11 @@ fn resolve_paid_subscription_expiry_ms(account: &CodexAccount) -> Option<i64> {
     resolve_subscription_expiry_ms(account)
 }
 
+fn resolve_auto_priority_paid_subscription_expiry_ms(expiry_ms: Option<i64>) -> Option<i64> {
+    let expiry_ms = expiry_ms?;
+    (expiry_ms.saturating_sub(now_ms()) <= AUTO_EXPIRY_PRIORITY_WINDOW_MS).then_some(expiry_ms)
+}
+
 fn build_routing_candidates(ordered_account_ids: &[String]) -> Vec<RoutingCandidate> {
     ordered_account_ids
         .iter()
@@ -2435,6 +2472,8 @@ fn build_routing_candidates(ordered_account_ids: &[String]) -> Vec<RoutingCandid
                     .unwrap_or(false),
                 plan_rank: account.as_ref().and_then(resolve_plan_rank),
                 remaining_quota: account.as_ref().and_then(resolve_remaining_quota),
+                hourly_remaining: account.as_ref().and_then(resolve_hourly_remaining),
+                weekly_remaining: account.as_ref().and_then(resolve_weekly_remaining),
                 subscription_expiry_ms: account
                     .as_ref()
                     .and_then(resolve_subscription_expiry_ms),
@@ -2480,14 +2519,14 @@ fn compare_routing_candidates(
     };
 
     let ordering = free_priority.then_with(|| match strategy {
-        CodexLocalAccessRoutingStrategy::Auto => {
-            compare_option_i64_asc(
-                left.paid_subscription_expiry_ms,
-                right.paid_subscription_expiry_ms,
-            )
-                .then_with(|| compare_option_desc(left.plan_rank, right.plan_rank))
-                .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota))
-        }
+        CodexLocalAccessRoutingStrategy::Auto => compare_option_i64_asc(
+            resolve_auto_priority_paid_subscription_expiry_ms(left.paid_subscription_expiry_ms),
+            resolve_auto_priority_paid_subscription_expiry_ms(right.paid_subscription_expiry_ms),
+        )
+        .then_with(|| compare_option_desc(left.plan_rank, right.plan_rank))
+        .then_with(|| compare_option_desc(left.hourly_remaining, right.hourly_remaining))
+        .then_with(|| compare_option_desc(left.weekly_remaining, right.weekly_remaining))
+        .then_with(|| compare_option_desc(left.remaining_quota, right.remaining_quota)),
         CodexLocalAccessRoutingStrategy::QuotaHighFirst => {
             compare_option_desc(left.remaining_quota, right.remaining_quota)
                 .then_with(|| compare_option_desc(left.plan_rank, right.plan_rank))
@@ -2965,26 +3004,44 @@ fn prune_runtime_routing_state(runtime: &mut GatewayRuntime, now: i64) {
         .response_affinity
         .retain(|_, binding| now.saturating_sub(binding.updated_at_ms) <= RESPONSE_AFFINITY_TTL_MS);
     runtime
+        .model_affinity
+        .retain(|_, binding| now.saturating_sub(binding.updated_at_ms) <= MODEL_AFFINITY_TTL_MS);
+    runtime
         .model_cooldowns
         .retain(|_, cooldown| cooldown.next_retry_at_ms > now);
 
-    if runtime.response_affinity.len() <= MAX_RESPONSE_AFFINITY_BINDINGS {
-        return;
+    if runtime.response_affinity.len() > MAX_RESPONSE_AFFINITY_BINDINGS {
+        let mut bindings: Vec<(String, i64)> = runtime
+            .response_affinity
+            .iter()
+            .map(|(response_id, binding)| (response_id.clone(), binding.updated_at_ms))
+            .collect();
+        bindings.sort_by_key(|(_, updated_at_ms)| *updated_at_ms);
+
+        let remove_count = runtime
+            .response_affinity
+            .len()
+            .saturating_sub(MAX_RESPONSE_AFFINITY_BINDINGS);
+        for (response_id, _) in bindings.into_iter().take(remove_count) {
+            runtime.response_affinity.remove(&response_id);
+        }
     }
 
-    let mut bindings: Vec<(String, i64)> = runtime
-        .response_affinity
-        .iter()
-        .map(|(response_id, binding)| (response_id.clone(), binding.updated_at_ms))
-        .collect();
-    bindings.sort_by_key(|(_, updated_at_ms)| *updated_at_ms);
+    if runtime.model_affinity.len() > MAX_MODEL_AFFINITY_BINDINGS {
+        let mut bindings: Vec<(String, i64)> = runtime
+            .model_affinity
+            .iter()
+            .map(|(key, binding)| (key.clone(), binding.updated_at_ms))
+            .collect();
+        bindings.sort_by_key(|(_, updated_at_ms)| *updated_at_ms);
 
-    let remove_count = runtime
-        .response_affinity
-        .len()
-        .saturating_sub(MAX_RESPONSE_AFFINITY_BINDINGS);
-    for (response_id, _) in bindings.into_iter().take(remove_count) {
-        runtime.response_affinity.remove(&response_id);
+        let remove_count = runtime
+            .model_affinity
+            .len()
+            .saturating_sub(MAX_MODEL_AFFINITY_BINDINGS);
+        for (key, _) in bindings.into_iter().take(remove_count) {
+            runtime.model_affinity.remove(&key);
+        }
     }
 }
 
@@ -3011,6 +3068,48 @@ async fn bind_response_affinity(response_id: &str, account_id: &str) {
     runtime.response_affinity.insert(
         response_id.to_string(),
         ResponseAffinityBinding {
+            account_id: account_id.to_string(),
+            updated_at_ms: now,
+        },
+    );
+    prune_runtime_routing_state(&mut runtime, now);
+}
+
+fn build_model_affinity_key(api_key_id: &str, model_key: &str) -> Option<String> {
+    let api_key_id = api_key_id.trim();
+    let model_key = model_key.trim();
+    if api_key_id.is_empty() || model_key.is_empty() {
+        return None;
+    }
+    Some(format!("{}\u{1f}{}", api_key_id, model_key))
+}
+
+async fn resolve_model_affinity_account(api_key_id: &str, model_key: &str) -> Option<String> {
+    let key = build_model_affinity_key(api_key_id, model_key)?;
+    let mut runtime = gateway_runtime().lock().await;
+    let now = now_ms();
+    prune_runtime_routing_state(&mut runtime, now);
+    runtime
+        .model_affinity
+        .get(&key)
+        .map(|binding| binding.account_id.clone())
+}
+
+async fn bind_model_affinity(api_key_id: &str, model_key: &str, account_id: &str) {
+    let account_id = account_id.trim();
+    if account_id.is_empty() {
+        return;
+    }
+    let Some(key) = build_model_affinity_key(api_key_id, model_key) else {
+        return;
+    };
+
+    let mut runtime = gateway_runtime().lock().await;
+    let now = now_ms();
+    prune_runtime_routing_state(&mut runtime, now);
+    runtime.model_affinity.insert(
+        key,
+        ModelAffinityBinding {
             account_id: account_id.to_string(),
             updated_at_ms: now,
         },
@@ -4697,8 +4796,16 @@ fn summarize_upstream_error(status: StatusCode, body: &str) -> String {
     format!("{}: {}", status.as_u16(), detail)
 }
 
+fn is_model_capacity_error(body: &str) -> bool {
+    let lower = body.to_ascii_lowercase();
+    lower.contains("selected model is at capacity") || lower.contains("model is at capacity")
+}
+
 fn should_try_next_account(status: StatusCode, body: &str) -> bool {
     if status == StatusCode::UNAUTHORIZED {
+        return true;
+    }
+    if is_model_capacity_error(body) {
         return true;
     }
     if matches!(
@@ -4718,13 +4825,11 @@ fn should_try_next_account(status: StatusCode, body: &str) -> bool {
         || lower.contains("insufficient_quota")
         || lower.contains("quota exceeded")
         || lower.contains("quota exceeded");
-    let model_capacity =
-        lower.contains("selected model is at capacity") || lower.contains("model is at capacity");
 
     matches!(
         status,
         StatusCode::TOO_MANY_REQUESTS | StatusCode::FORBIDDEN
-    ) && (quota_exhausted || model_capacity)
+    ) && quota_exhausted
 }
 
 fn json_response(status: u16, status_text: &str, body: &Value) -> Vec<u8> {
@@ -5624,6 +5729,20 @@ fn single_account_status_retry_delay(retry_attempt: usize) -> Duration {
     }
 }
 
+fn model_capacity_retry_delay(retry_attempt: usize) -> Duration {
+    let multiplier = match retry_attempt {
+        0 | 1 => 1u32,
+        2 => 2u32,
+        _ => 4u32,
+    };
+    let delay = MODEL_CAPACITY_RETRY_BASE_DELAY.saturating_mul(multiplier);
+    if delay > MODEL_CAPACITY_RETRY_MAX_DELAY {
+        MODEL_CAPACITY_RETRY_MAX_DELAY
+    } else {
+        delay
+    }
+}
+
 async fn send_upstream_request(
     method: &str,
     target: &str,
@@ -5707,6 +5826,7 @@ async fn send_upstream_request(
 async fn proxy_request_with_account_pool(
     request: &ParsedRequest,
     collection: &CodexLocalAccessCollection,
+    api_key_id: &str,
 ) -> Result<ProxyDispatchSuccess, ProxyDispatchError> {
     if collection.account_ids.is_empty() {
         return Err(ProxyDispatchError {
@@ -5732,10 +5852,21 @@ async fn proxy_request_with_account_pool(
     let allow_free_accounts = !collection.restrict_free_accounts && !model_restricts_free;
     let total = collection.account_ids.len();
     let max_credential_attempts = total.min(MAX_RETRY_CREDENTIALS_PER_REQUEST).max(1);
-    let affinity_account_id = match routing_hint.previous_response_id.as_deref() {
+    let response_affinity_account_id = match routing_hint.previous_response_id.as_deref() {
         Some(previous_response_id) => resolve_affinity_account(previous_response_id).await,
         None => None,
     };
+    let model_affinity_account_id = if response_affinity_account_id.is_none() {
+        resolve_model_affinity_account(api_key_id, &routing_hint.model_key).await
+    } else {
+        None
+    };
+    let affinity_account_id =
+        response_affinity_account_id.or(model_affinity_account_id);
+    let use_round_robin = !matches!(
+        collection.routing_strategy,
+        CodexLocalAccessRoutingStrategy::Auto
+    );
     let mut last_status = 503u16;
     let mut last_error = "本地接入集合暂无可用账号".to_string();
     let mut last_account_id: Option<String> = None;
@@ -5745,7 +5876,11 @@ async fn proxy_request_with_account_pool(
     let mut earliest_cooldown_wait: Option<Duration>;
 
     loop {
-        let start = GATEWAY_ROUND_ROBIN_CURSOR.fetch_add(1, Ordering::Relaxed);
+        let start = if use_round_robin {
+            GATEWAY_ROUND_ROBIN_CURSOR.fetch_add(1, Ordering::Relaxed)
+        } else {
+            0
+        };
         let ordered_account_ids = build_ordered_account_ids(
             &collection.account_ids,
             start,
@@ -5829,6 +5964,7 @@ async fn proxy_request_with_account_pool(
             last_account_email = Some(account.email.clone());
 
             let mut single_account_status_retry_attempt = 0usize;
+            let mut model_capacity_retry_attempt = 0usize;
             loop {
                 let first_response = send_upstream_request(
                     &request.method,
@@ -5924,6 +6060,7 @@ async fn proxy_request_with_account_pool(
                         upstream: response,
                         account_id: account.id.clone(),
                         account_email: account.email.clone(),
+                        model_key: routing_hint.model_key.clone(),
                     });
                 }
 
@@ -5939,6 +6076,15 @@ async fn proxy_request_with_account_pool(
                     None,
                     format!("上游返回失败: {}", message).as_str(),
                 );
+
+                if is_model_capacity_error(&body)
+                    && model_capacity_retry_attempt < MODEL_CAPACITY_RETRY_ATTEMPTS
+                {
+                    model_capacity_retry_attempt += 1;
+                    tokio::time::sleep(model_capacity_retry_delay(model_capacity_retry_attempt))
+                        .await;
+                    continue;
+                }
 
                 if let Some(retry_after) = parse_codex_retry_after(status, &body) {
                     set_model_cooldown(&account.id, &routing_hint.model_key, retry_after).await;
@@ -6230,13 +6376,25 @@ async fn handle_connection(
         }
     };
 
-    match proxy_request_with_account_pool(&prepared_request, &collection).await {
+    match proxy_request_with_account_pool(
+        &prepared_request,
+        &collection,
+        authenticated_api_key.id.as_str(),
+    )
+    .await
+    {
         Ok(success) => {
             let response_capture =
                 write_gateway_response(&mut stream, success.upstream, response_adapter).await?;
             if let Some(response_id) = response_capture.response_id.as_deref() {
                 bind_response_affinity(response_id, &success.account_id).await;
             }
+            bind_model_affinity(
+                authenticated_api_key.id.as_str(),
+                &success.model_key,
+                &success.account_id,
+            )
+            .await;
             let latency_ms = started_at.elapsed().as_millis() as u64;
             if let Err(err) = record_request_stats(
                 Some(success.account_id.as_str()),
@@ -6594,6 +6752,14 @@ data: {"type":"response.completed","response":{"id":"resp_123","usage":{"input_t
         assert!(should_try_next_account(
             StatusCode::BAD_GATEWAY,
             "gateway error"
+        ));
+    }
+
+    #[test]
+    fn retries_next_account_for_model_capacity_error() {
+        assert!(should_try_next_account(
+            StatusCode::TOO_MANY_REQUESTS,
+            r#"{"error":{"message":"Selected model is at capacity. Please try a different model."}}"#,
         ));
     }
 
