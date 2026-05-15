@@ -41,6 +41,10 @@ pub struct CodexLocalAccessApiKey {
     #[serde(default)]
     pub total_token_limit: Option<u64>,
     #[serde(default)]
+    pub daily_cost_limit_micros_usd: Option<u64>,
+    #[serde(default)]
+    pub total_cost_limit_micros_usd: Option<u64>,
+    #[serde(default)]
     pub created_at: i64,
     #[serde(default)]
     pub updated_at: i64,
@@ -87,6 +91,8 @@ pub struct CodexLocalAccessUsageStats {
     pub cached_tokens: u64,
     #[serde(default)]
     pub reasoning_tokens: u64,
+    #[serde(default)]
+    pub cost_micros_usd: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -140,6 +146,8 @@ pub struct CodexLocalAccessUsageEvent {
     #[serde(default)]
     pub api_key_name: String,
     #[serde(default)]
+    pub model: String,
+    #[serde(default)]
     pub success: bool,
     #[serde(default)]
     pub latency_ms: u64,
@@ -153,6 +161,8 @@ pub struct CodexLocalAccessUsageEvent {
     pub cached_tokens: u64,
     #[serde(default)]
     pub reasoning_tokens: u64,
+    #[serde(default)]
+    pub cost_micros_usd: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

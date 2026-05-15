@@ -2883,8 +2883,8 @@ export function CodexAccountsPage() {
         name: t('codex.localAccess.defaultKeyName', '默认密钥'),
         key: localAccessCollection.apiKey,
         enabled: true,
-        dailyTokenLimit: null,
-        totalTokenLimit: null,
+        dailyCostLimitMicrosUsd: null,
+        totalCostLimitMicrosUsd: null,
         createdAt: localAccessCollection.createdAt,
         updatedAt: localAccessCollection.updatedAt,
       }
@@ -3183,8 +3183,8 @@ export function CodexAccountsPage() {
 
   const handleAddLocalAccessApiKey = useCallback(async (payload: {
     name?: string;
-    dailyTokenLimit?: number | null;
-    totalTokenLimit?: number | null;
+    dailyCostLimitMicrosUsd?: number | null;
+    totalCostLimitMicrosUsd?: number | null;
   }) => {
     setLocalAccessSaving(true);
     try {
@@ -3206,8 +3206,8 @@ export function CodexAccountsPage() {
     keyId: string;
     name: string;
     enabled: boolean;
-    dailyTokenLimit?: number | null;
-    totalTokenLimit?: number | null;
+    dailyCostLimitMicrosUsd?: number | null;
+    totalCostLimitMicrosUsd?: number | null;
   }) => {
     setLocalAccessSaving(true);
     try {

@@ -27,8 +27,8 @@ export async function removeCodexLocalAccessAccount(
 
 export async function addCodexLocalAccessApiKey(payload: {
   name?: string;
-  dailyTokenLimit?: number | null;
-  totalTokenLimit?: number | null;
+  dailyCostLimitMicrosUsd?: number | null;
+  totalCostLimitMicrosUsd?: number | null;
 }): Promise<CodexLocalAccessState> {
   return await invoke('codex_local_access_add_api_key', payload);
 }
@@ -37,8 +37,8 @@ export async function updateCodexLocalAccessApiKey(payload: {
   keyId: string;
   name: string;
   enabled: boolean;
-  dailyTokenLimit?: number | null;
-  totalTokenLimit?: number | null;
+  dailyCostLimitMicrosUsd?: number | null;
+  totalCostLimitMicrosUsd?: number | null;
 }): Promise<CodexLocalAccessState> {
   return await invoke('codex_local_access_update_api_key', payload);
 }

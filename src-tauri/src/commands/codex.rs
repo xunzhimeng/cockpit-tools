@@ -739,10 +739,15 @@ pub async fn codex_local_access_remove_account(
 #[tauri::command]
 pub async fn codex_local_access_add_api_key(
     name: Option<String>,
-    daily_token_limit: Option<u64>,
-    total_token_limit: Option<u64>,
+    daily_cost_limit_micros_usd: Option<u64>,
+    total_cost_limit_micros_usd: Option<u64>,
 ) -> Result<CodexLocalAccessState, String> {
-    codex_local_access::add_local_access_api_key(name, daily_token_limit, total_token_limit).await
+    codex_local_access::add_local_access_api_key(
+        name,
+        daily_cost_limit_micros_usd,
+        total_cost_limit_micros_usd,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -750,15 +755,15 @@ pub async fn codex_local_access_update_api_key(
     key_id: String,
     name: String,
     enabled: bool,
-    daily_token_limit: Option<u64>,
-    total_token_limit: Option<u64>,
+    daily_cost_limit_micros_usd: Option<u64>,
+    total_cost_limit_micros_usd: Option<u64>,
 ) -> Result<CodexLocalAccessState, String> {
     codex_local_access::update_local_access_api_key(
         &key_id,
         name,
         enabled,
-        daily_token_limit,
-        total_token_limit,
+        daily_cost_limit_micros_usd,
+        total_cost_limit_micros_usd,
     )
     .await
 }

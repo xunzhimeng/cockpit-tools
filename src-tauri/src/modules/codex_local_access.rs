@@ -72,6 +72,8 @@ const DEFAULT_CODEX_MODELS: &[&str] = &[
 ];
 const CODEX_IMAGE_MODEL_ID: &str = "gpt-image-2";
 const DEFAULT_IMAGES_MAIN_MODEL: &str = "gpt-5.4-mini";
+const MICROS_USD_PER_USD: u64 = 1_000_000;
+const TOKEN_PRICE_DENOMINATOR: u64 = 1_000_000;
 const CHAT_COMPLETIONS_PATH: &str = "/v1/chat/completions";
 const RESPONSES_PATH: &str = "/v1/responses";
 const IMAGES_GENERATIONS_PATH: &str = "/v1/images/generations";
@@ -79,6 +81,7 @@ const IMAGES_EDITS_PATH: &str = "/v1/images/edits";
 static GATEWAY_RUNTIME: OnceLock<TokioMutex<GatewayRuntime>> = OnceLock::new();
 static GATEWAY_ROUND_ROBIN_CURSOR: AtomicUsize = AtomicUsize::new(0);
 static UPSTREAM_HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
+static STATS_DISK_WRITE_LOCK: OnceLock<TokioMutex<()>> = OnceLock::new();
 
 #[derive(Default)]
 struct GatewayRuntime {
@@ -105,6 +108,14 @@ struct UsageCapture {
     total_tokens: u64,
     cached_tokens: u64,
     reasoning_tokens: u64,
+    cost_micros_usd: u64,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ModelTokenPricing {
+    input_micros_usd_per_million: u64,
+    cached_input_micros_usd_per_million: u64,
+    output_micros_usd_per_million: u64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -179,8 +190,8 @@ struct ProxyDispatchError {
 struct AuthenticatedLocalApiKey {
     id: String,
     name: String,
-    daily_token_limit: Option<u64>,
-    total_token_limit: Option<u64>,
+    daily_cost_limit_micros_usd: Option<u64>,
+    total_cost_limit_micros_usd: Option<u64>,
 }
 
 struct ResponseUsageCollector {
@@ -240,6 +251,10 @@ fn gateway_runtime() -> &'static TokioMutex<GatewayRuntime> {
 
 fn upstream_http_client() -> &'static Client {
     UPSTREAM_HTTP_CLIENT.get_or_init(Client::new)
+}
+
+fn stats_disk_write_lock() -> &'static TokioMutex<()> {
+    STATS_DISK_WRITE_LOCK.get_or_init(|| TokioMutex::new(()))
 }
 
 fn local_access_file_path() -> Result<PathBuf, String> {
@@ -357,32 +372,169 @@ async fn schedule_stats_flush_if_needed() {
         loop {
             tokio::time::sleep(STATS_FLUSH_INTERVAL).await;
 
-            let stats_snapshot = {
-                let mut runtime = gateway_runtime().lock().await;
-                if !runtime.stats_dirty {
+            match flush_dirty_stats_to_disk().await {
+                Ok(true) => {}
+                Ok(false) => {
+                    let mut runtime = gateway_runtime().lock().await;
+                    if runtime.stats_dirty {
+                        continue;
+                    }
                     runtime.stats_flush_inflight = false;
                     return;
                 }
-                runtime.stats_dirty = false;
-                runtime.stats.clone()
-            };
-
-            if let Err(err) = save_stats_to_disk(&stats_snapshot) {
-                logger::log_codex_api_warn(&format!(
-                    "[CodexLocalAccess] 后台写入请求统计失败: {}",
-                    err
-                ));
-                let mut runtime = gateway_runtime().lock().await;
-                runtime.stats_dirty = true;
-                runtime.stats_flush_inflight = false;
-                return;
+                Err(err) => {
+                    logger::log_codex_api_warn(&format!(
+                        "[CodexLocalAccess] 后台写入请求统计失败: {}",
+                        err
+                    ));
+                    let mut runtime = gateway_runtime().lock().await;
+                    runtime.stats_flush_inflight = false;
+                    return;
+                }
             }
         }
     });
 }
 
+async fn flush_dirty_stats_to_disk() -> Result<bool, String> {
+    let _write_guard = stats_disk_write_lock().lock().await;
+    let stats_snapshot = {
+        let mut runtime = gateway_runtime().lock().await;
+        if !runtime.stats_dirty {
+            return Ok(false);
+        }
+        runtime.stats_dirty = false;
+        runtime.stats.clone()
+    };
+
+    if let Err(err) = save_stats_to_disk(&stats_snapshot) {
+        let mut runtime = gateway_runtime().lock().await;
+        runtime.stats_dirty = true;
+        return Err(err);
+    }
+
+    Ok(true)
+}
+
 fn normalize_model_key(model: &str) -> String {
     model.trim().to_ascii_lowercase()
+}
+
+fn model_token_pricing(model: &str) -> ModelTokenPricing {
+    let normalized = normalize_model_key(model);
+    if normalized.contains("gpt-5.5-pro") {
+        return ModelTokenPricing {
+            input_micros_usd_per_million: 30_000_000,
+            cached_input_micros_usd_per_million: 30_000_000,
+            output_micros_usd_per_million: 180_000_000,
+        };
+    }
+    if normalized.contains("gpt-5.5") {
+        return ModelTokenPricing {
+            input_micros_usd_per_million: 5_000_000,
+            cached_input_micros_usd_per_million: 500_000,
+            output_micros_usd_per_million: 30_000_000,
+        };
+    }
+    if normalized.contains("gpt-5.4-pro") {
+        return ModelTokenPricing {
+            input_micros_usd_per_million: 30_000_000,
+            cached_input_micros_usd_per_million: 30_000_000,
+            output_micros_usd_per_million: 180_000_000,
+        };
+    }
+    if normalized.contains("gpt-5.4-mini") {
+        return ModelTokenPricing {
+            input_micros_usd_per_million: 750_000,
+            cached_input_micros_usd_per_million: 75_000,
+            output_micros_usd_per_million: 4_500_000,
+        };
+    }
+    if normalized.contains("gpt-5.4-nano") {
+        return ModelTokenPricing {
+            input_micros_usd_per_million: 200_000,
+            cached_input_micros_usd_per_million: 20_000,
+            output_micros_usd_per_million: 1_250_000,
+        };
+    }
+    if normalized.contains("gpt-5.4") {
+        return ModelTokenPricing {
+            input_micros_usd_per_million: 2_500_000,
+            cached_input_micros_usd_per_million: 250_000,
+            output_micros_usd_per_million: 15_000_000,
+        };
+    }
+    if normalized.contains("gpt-5.3") {
+        return ModelTokenPricing {
+            input_micros_usd_per_million: 1_750_000,
+            cached_input_micros_usd_per_million: 175_000,
+            output_micros_usd_per_million: 14_000_000,
+        };
+    }
+    if normalized.contains("max") {
+        return ModelTokenPricing {
+            input_micros_usd_per_million: 15_000_000,
+            cached_input_micros_usd_per_million: 1_500_000,
+            output_micros_usd_per_million: 120_000_000,
+        };
+    }
+    if normalized.contains("mini") || normalized.contains("spark") {
+        return ModelTokenPricing {
+            input_micros_usd_per_million: 250_000,
+            cached_input_micros_usd_per_million: 25_000,
+            output_micros_usd_per_million: 2_000_000,
+        };
+    }
+    if normalized.contains("image") {
+        return ModelTokenPricing {
+            input_micros_usd_per_million: 5_000_000,
+            cached_input_micros_usd_per_million: 500_000,
+            output_micros_usd_per_million: 40_000_000,
+        };
+    }
+    ModelTokenPricing {
+        input_micros_usd_per_million: 1_250_000,
+        cached_input_micros_usd_per_million: 125_000,
+        output_micros_usd_per_million: 10_000_000,
+    }
+}
+
+fn tokens_to_cost_micros_usd(tokens: u64, micros_usd_per_million_tokens: u64) -> u64 {
+    let value = (tokens as u128).saturating_mul(micros_usd_per_million_tokens as u128);
+    let rounded = value.saturating_add((TOKEN_PRICE_DENOMINATOR - 1) as u128)
+        / TOKEN_PRICE_DENOMINATOR as u128;
+    rounded.min(u64::MAX as u128) as u64
+}
+
+fn estimate_usage_cost_micros_usd(model: &str, usage: &UsageCapture) -> u64 {
+    if usage.cost_micros_usd > 0 {
+        return usage.cost_micros_usd;
+    }
+    let pricing = model_token_pricing(model);
+    let cached_input_tokens = usage.cached_tokens.min(usage.input_tokens);
+    let uncached_input_tokens = usage.input_tokens.saturating_sub(cached_input_tokens);
+    let output_tokens = usage.output_tokens.max(usage.reasoning_tokens);
+    tokens_to_cost_micros_usd(uncached_input_tokens, pricing.input_micros_usd_per_million)
+        .saturating_add(tokens_to_cost_micros_usd(
+            cached_input_tokens,
+            pricing.cached_input_micros_usd_per_million,
+        ))
+        .saturating_add(tokens_to_cost_micros_usd(
+            output_tokens,
+            pricing.output_micros_usd_per_million,
+        ))
+}
+
+fn format_cost_micros_usd(value: u64) -> String {
+    let dollars = value as f64 / MICROS_USD_PER_USD as f64;
+    if value == 0 {
+        "$0".to_string()
+    } else if dollars >= 0.01 {
+        format!("${:.2}", dollars)
+    } else {
+        let formatted = format!("${:.6}", dollars);
+        formatted.trim_end_matches('0').trim_end_matches('.').to_string()
+    }
 }
 
 fn has_date_snapshot_suffix(value: &str) -> bool {
@@ -2744,6 +2896,7 @@ fn append_usage_event(
     account_email: Option<&str>,
     api_key_id: Option<&str>,
     api_key_name: Option<&str>,
+    model: Option<&str>,
     success: bool,
     latency_ms: u64,
     usage: Option<&UsageCapture>,
@@ -2755,6 +2908,7 @@ fn append_usage_event(
         email: account_email.unwrap_or_default().trim().to_string(),
         api_key_id: api_key_id.unwrap_or_default().trim().to_string(),
         api_key_name: api_key_name.unwrap_or_default().trim().to_string(),
+        model: model.unwrap_or_default().trim().to_string(),
         success,
         latency_ms,
         input_tokens: usage.input_tokens,
@@ -2762,6 +2916,7 @@ fn append_usage_event(
         total_tokens: usage.total_tokens,
         cached_tokens: usage.cached_tokens,
         reasoning_tokens: usage.reasoning_tokens,
+        cost_micros_usd: usage.cost_micros_usd,
     });
 }
 
@@ -2775,6 +2930,7 @@ fn apply_usage_event_to_window(
         total_tokens: event.total_tokens,
         cached_tokens: event.cached_tokens,
         reasoning_tokens: event.reasoning_tokens,
+        cost_micros_usd: event.cost_micros_usd,
     };
     apply_usage_stats(
         &mut window.totals,
@@ -2911,6 +3067,8 @@ fn default_local_access_api_key(api_key: String, now: i64) -> CodexLocalAccessAp
         enabled: true,
         daily_token_limit: None,
         total_token_limit: None,
+        daily_cost_limit_micros_usd: None,
+        total_cost_limit_micros_usd: None,
         created_at: now,
         updated_at: now,
     }
@@ -3247,13 +3405,19 @@ fn normalize_local_access_api_keys(collection: &mut CodexLocalAccessCollection) 
         }
         let daily_token_limit = sanitize_token_limit(item.daily_token_limit);
         let total_token_limit = sanitize_token_limit(item.total_token_limit);
+        let daily_cost_limit_micros_usd = sanitize_token_limit(item.daily_cost_limit_micros_usd);
+        let total_cost_limit_micros_usd = sanitize_token_limit(item.total_cost_limit_micros_usd);
         if item.daily_token_limit != daily_token_limit
             || item.total_token_limit != total_token_limit
+            || item.daily_cost_limit_micros_usd != daily_cost_limit_micros_usd
+            || item.total_cost_limit_micros_usd != total_cost_limit_micros_usd
         {
             changed = true;
         }
         item.daily_token_limit = daily_token_limit;
         item.total_token_limit = total_token_limit;
+        item.daily_cost_limit_micros_usd = daily_cost_limit_micros_usd;
+        item.total_cost_limit_micros_usd = total_cost_limit_micros_usd;
         if !seen_keys.insert(item.key.clone()) {
             changed = true;
             continue;
@@ -3558,6 +3722,7 @@ fn apply_usage_stats(
         target.reasoning_tokens = target
             .reasoning_tokens
             .saturating_add(usage.reasoning_tokens);
+        target.cost_micros_usd = target.cost_micros_usd.saturating_add(usage.cost_micros_usd);
     }
 }
 
@@ -3643,6 +3808,7 @@ async fn record_request_stats(
     account_email: Option<&str>,
     api_key_id: Option<&str>,
     api_key_name: Option<&str>,
+    model: Option<&str>,
     success: bool,
     latency_ms: u64,
     usage: Option<UsageCapture>,
@@ -3650,6 +3816,11 @@ async fn record_request_stats(
     {
         let mut runtime = gateway_runtime().lock().await;
         let now = now_ms();
+        let model = model.unwrap_or_default().trim().to_string();
+        let mut usage = usage;
+        if let Some(usage) = usage.as_mut() {
+            usage.cost_micros_usd = estimate_usage_cost_micros_usd(&model, usage);
+        }
         let usage_ref = usage.as_ref();
         if runtime.stats.since <= 0 {
             runtime.stats.since = now;
@@ -3681,6 +3852,7 @@ async fn record_request_stats(
             account_email,
             api_key_id,
             api_key_name,
+            Some(model.as_str()),
             success,
             latency_ms,
             usage_ref,
@@ -3909,8 +4081,8 @@ pub async fn remove_local_access_account(
 
 pub async fn add_local_access_api_key(
     name: Option<String>,
-    daily_token_limit: Option<u64>,
-    total_token_limit: Option<u64>,
+    daily_cost_limit_micros_usd: Option<u64>,
+    total_cost_limit_micros_usd: Option<u64>,
 ) -> Result<CodexLocalAccessState, String> {
     ensure_runtime_loaded().await?;
 
@@ -3935,8 +4107,10 @@ pub async fn add_local_access_api_key(
         name: key_name,
         key: generate_local_api_key(),
         enabled: true,
-        daily_token_limit: sanitize_token_limit(daily_token_limit),
-        total_token_limit: sanitize_token_limit(total_token_limit),
+        daily_token_limit: None,
+        total_token_limit: None,
+        daily_cost_limit_micros_usd: sanitize_token_limit(daily_cost_limit_micros_usd),
+        total_cost_limit_micros_usd: sanitize_token_limit(total_cost_limit_micros_usd),
         created_at: now,
         updated_at: now,
     });
@@ -3956,8 +4130,8 @@ pub async fn update_local_access_api_key(
     key_id: &str,
     name: String,
     enabled: bool,
-    daily_token_limit: Option<u64>,
-    total_token_limit: Option<u64>,
+    daily_cost_limit_micros_usd: Option<u64>,
+    total_cost_limit_micros_usd: Option<u64>,
 ) -> Result<CodexLocalAccessState, String> {
     ensure_runtime_loaded().await?;
 
@@ -3994,8 +4168,10 @@ pub async fn update_local_access_api_key(
             item.name = "Key".to_string();
         }
         item.enabled = enabled;
-        item.daily_token_limit = sanitize_token_limit(daily_token_limit);
-        item.total_token_limit = sanitize_token_limit(total_token_limit);
+        item.daily_token_limit = None;
+        item.total_token_limit = None;
+        item.daily_cost_limit_micros_usd = sanitize_token_limit(daily_cost_limit_micros_usd);
+        item.total_cost_limit_micros_usd = sanitize_token_limit(total_cost_limit_micros_usd);
         item.updated_at = now;
         break;
     }
@@ -4383,15 +4559,15 @@ fn authenticate_local_api_key(
         .map(|item| AuthenticatedLocalApiKey {
             id: item.id.clone(),
             name: item.name.clone(),
-            daily_token_limit: item.daily_token_limit,
-            total_token_limit: item.total_token_limit,
+            daily_cost_limit_micros_usd: item.daily_cost_limit_micros_usd,
+            total_cost_limit_micros_usd: item.total_cost_limit_micros_usd,
         })
 }
 
-fn find_key_usage_total(keys: &[CodexLocalAccessKeyStats], key_id: &str) -> u64 {
+fn find_key_usage_cost_micros_usd(keys: &[CodexLocalAccessKeyStats], key_id: &str) -> u64 {
     keys.iter()
         .find(|item| item.key_id == key_id)
-        .map(|item| item.usage.total_tokens)
+        .map(|item| item.usage.cost_micros_usd)
         .unwrap_or(0)
 }
 
@@ -4399,22 +4575,26 @@ fn check_local_api_key_quota(
     stats: &CodexLocalAccessStats,
     api_key: &AuthenticatedLocalApiKey,
 ) -> Result<(), String> {
-    if let Some(limit) = api_key.daily_token_limit {
-        let used = find_key_usage_total(&stats.daily.keys, &api_key.id);
+    if let Some(limit) = api_key.daily_cost_limit_micros_usd {
+        let used = find_key_usage_cost_micros_usd(&stats.daily.keys, &api_key.id);
         if used >= limit {
             return Err(format!(
-                "访问密钥 {} 已达到每日 Token 限额（{} / {}）",
-                api_key.name, used, limit
+                "访问密钥 {} 已达到每日美元限额（{} / {}）",
+                api_key.name,
+                format_cost_micros_usd(used),
+                format_cost_micros_usd(limit),
             ));
         }
     }
 
-    if let Some(limit) = api_key.total_token_limit {
-        let used = find_key_usage_total(&stats.keys, &api_key.id);
+    if let Some(limit) = api_key.total_cost_limit_micros_usd {
+        let used = find_key_usage_cost_micros_usd(&stats.keys, &api_key.id);
         if used >= limit {
             return Err(format!(
-                "访问密钥 {} 已达到总 Token 限额（{} / {}）",
-                api_key.name, used, limit
+                "访问密钥 {} 已达到总美元限额（{} / {}）",
+                api_key.name,
+                format_cost_micros_usd(used),
+                format_cost_micros_usd(limit),
             ));
         }
     }
@@ -4460,6 +4640,34 @@ fn usage_number(value: Option<&Value>) -> Option<u64> {
             .filter(|number| *number >= 0)
             .map(|number| number as u64)
     })
+}
+
+fn usage_float(value: Option<&Value>) -> Option<f64> {
+    value.and_then(Value::as_f64).or_else(|| {
+        value
+            .and_then(Value::as_str)
+            .and_then(|item| item.trim().parse::<f64>().ok())
+    }).filter(|number| number.is_finite() && *number >= 0.0)
+}
+
+fn usage_cost_micros_usd(usage: &Value) -> u64 {
+    usage_number(
+        usage
+            .get("cost_micros_usd")
+            .or_else(|| usage.get("costMicrosUsd"))
+            .or_else(|| usage.get("cost_micros"))
+            .or_else(|| usage.get("costMicros")),
+    )
+    .or_else(|| {
+        usage_float(
+            usage
+                .get("cost_usd")
+                .or_else(|| usage.get("costUsd"))
+                .or_else(|| usage.get("cost")),
+        )
+        .map(|value| (value * MICROS_USD_PER_USD as f64).round() as u64)
+    })
+    .unwrap_or(0)
 }
 
 fn non_null_child<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
@@ -4543,6 +4751,7 @@ fn extract_usage_capture(value: &Value) -> Option<UsageCapture> {
             .or_else(|| usage.get("thoughtsTokenCount")),
     )
     .unwrap_or(0);
+    let cost_micros_usd = usage_cost_micros_usd(usage);
 
     Some(UsageCapture {
         input_tokens,
@@ -4556,6 +4765,7 @@ fn extract_usage_capture(value: &Value) -> Option<UsageCapture> {
         },
         cached_tokens,
         reasoning_tokens,
+        cost_micros_usd,
     })
 }
 
@@ -6326,6 +6536,7 @@ async fn handle_connection(
             None,
             Some(authenticated_api_key.id.as_str()),
             Some(authenticated_api_key.name.as_str()),
+            None,
             false,
             latency_ms,
             None,
@@ -6361,6 +6572,7 @@ async fn handle_connection(
                 None,
                 Some(authenticated_api_key.id.as_str()),
                 Some(authenticated_api_key.name.as_str()),
+                None,
                 false,
                 latency_ms,
                 None,
@@ -6401,6 +6613,7 @@ async fn handle_connection(
                 Some(success.account_email.as_str()),
                 Some(authenticated_api_key.id.as_str()),
                 Some(authenticated_api_key.name.as_str()),
+                Some(success.model_key.as_str()),
                 true,
                 latency_ms,
                 response_capture.usage,
@@ -6450,6 +6663,7 @@ async fn handle_connection(
                 account_email.as_deref(),
                 Some(authenticated_api_key.id.as_str()),
                 Some(authenticated_api_key.name.as_str()),
+                None,
                 false,
                 latency_ms,
                 None,
@@ -6472,8 +6686,9 @@ mod tests {
         append_usage_event, authenticate_local_api_key,
         build_chat_completion_payload, build_chat_completion_stream_body, build_images_api_payload,
         build_local_models_response, build_ordered_account_ids, build_request_routing_hint,
-        check_local_api_key_quota, empty_stats_snapshot, extract_usage_capture,
-        is_responses_completion_event, normalize_local_access_api_keys, normalize_stats, now_ms,
+        check_local_api_key_quota, empty_stats_snapshot, estimate_usage_cost_micros_usd,
+        extract_usage_capture, is_responses_completion_event, model_token_pricing,
+        normalize_local_access_api_keys, normalize_stats, now_ms,
         parse_codex_retry_after, parse_responses_payload_from_upstream, prepare_gateway_request,
         resolve_supported_model_alias, should_retry_single_account_upstream_status,
         should_treat_response_as_stream, should_try_next_account, AuthenticatedLocalApiKey,
@@ -6518,6 +6733,8 @@ mod tests {
             enabled,
             daily_token_limit,
             total_token_limit,
+            daily_cost_limit_micros_usd: None,
+            total_cost_limit_micros_usd: None,
             created_at: 1,
             updated_at: 1,
         }
@@ -6551,19 +6768,55 @@ mod tests {
     }
 
     #[test]
-    fn enforces_daily_and_total_token_limits_per_key() {
+    fn uses_exact_gpt_5_3_5_4_5_5_token_pricing() {
+        let gpt_5_3 = model_token_pricing("gpt-5.3-codex");
+        assert_eq!(gpt_5_3.input_micros_usd_per_million, 1_750_000);
+        assert_eq!(gpt_5_3.cached_input_micros_usd_per_million, 175_000);
+        assert_eq!(gpt_5_3.output_micros_usd_per_million, 14_000_000);
+
+        let gpt_5_4 = model_token_pricing("gpt-5.4");
+        assert_eq!(gpt_5_4.input_micros_usd_per_million, 2_500_000);
+        assert_eq!(gpt_5_4.cached_input_micros_usd_per_million, 250_000);
+        assert_eq!(gpt_5_4.output_micros_usd_per_million, 15_000_000);
+
+        let gpt_5_4_mini = model_token_pricing("gpt-5.4-mini");
+        assert_eq!(gpt_5_4_mini.input_micros_usd_per_million, 750_000);
+        assert_eq!(gpt_5_4_mini.cached_input_micros_usd_per_million, 75_000);
+        assert_eq!(gpt_5_4_mini.output_micros_usd_per_million, 4_500_000);
+
+        let gpt_5_5 = model_token_pricing("gpt-5.5");
+        assert_eq!(gpt_5_5.input_micros_usd_per_million, 5_000_000);
+        assert_eq!(gpt_5_5.cached_input_micros_usd_per_million, 500_000);
+        assert_eq!(gpt_5_5.output_micros_usd_per_million, 30_000_000);
+    }
+
+    #[test]
+    fn estimates_cost_with_uncached_cached_and_output_tokens() {
+        let usage = UsageCapture {
+            input_tokens: 1_000_000,
+            output_tokens: 100_000,
+            total_tokens: 1_100_000,
+            cached_tokens: 250_000,
+            reasoning_tokens: 0,
+            cost_micros_usd: 0,
+        };
+        assert_eq!(estimate_usage_cost_micros_usd("gpt-5.4", &usage), 3_437_500);
+    }
+
+    #[test]
+    fn enforces_daily_and_total_cost_limits_per_key() {
         let api_key = AuthenticatedLocalApiKey {
             id: "key-a".to_string(),
             name: "A".to_string(),
-            daily_token_limit: Some(100),
-            total_token_limit: Some(300),
+            daily_cost_limit_micros_usd: Some(100),
+            total_cost_limit_micros_usd: Some(300),
         };
         let mut stats = empty_stats_snapshot();
         stats.daily.keys.push(CodexLocalAccessKeyStats {
             key_id: "key-a".to_string(),
             name: "A".to_string(),
             usage: CodexLocalAccessUsageStats {
-                total_tokens: 100,
+                cost_micros_usd: 100,
                 ..CodexLocalAccessUsageStats::default()
             },
             updated_at: 1,
@@ -6571,14 +6824,14 @@ mod tests {
 
         assert!(check_local_api_key_quota(&stats, &api_key)
             .expect_err("daily limit should block")
-            .contains("每日 Token 限额"));
+            .contains("每日美元限额"));
 
-        stats.daily.keys[0].usage.total_tokens = 99;
+        stats.daily.keys[0].usage.cost_micros_usd = 99;
         stats.keys.push(CodexLocalAccessKeyStats {
             key_id: "key-a".to_string(),
             name: "A".to_string(),
             usage: CodexLocalAccessUsageStats {
-                total_tokens: 300,
+                cost_micros_usd: 300,
                 ..CodexLocalAccessUsageStats::default()
             },
             updated_at: 1,
@@ -6586,7 +6839,7 @@ mod tests {
 
         assert!(check_local_api_key_quota(&stats, &api_key)
             .expect_err("total limit should block")
-            .contains("总 Token 限额"));
+            .contains("总美元限额"));
     }
 
     #[test]
@@ -6600,6 +6853,7 @@ mod tests {
             total_tokens: 12,
             cached_tokens: 2,
             reasoning_tokens: 3,
+            cost_micros_usd: 9,
         };
 
         append_usage_event(
@@ -6609,6 +6863,7 @@ mod tests {
             Some("a@example.com"),
             Some("key-a"),
             Some("Client A"),
+            Some("gpt-5-codex"),
             true,
             42,
             Some(&usage),
@@ -6627,6 +6882,7 @@ mod tests {
         assert_eq!(key_stats.usage.total_tokens, 12);
         assert_eq!(key_stats.usage.cached_tokens, 2);
         assert_eq!(key_stats.usage.reasoning_tokens, 3);
+        assert_eq!(key_stats.usage.cost_micros_usd, 9);
     }
 
     #[test]

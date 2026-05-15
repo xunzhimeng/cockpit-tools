@@ -24,8 +24,8 @@ export interface CodexLocalAccessApiKey {
   name: string;
   key: string;
   enabled: boolean;
-  dailyTokenLimit: number | null;
-  totalTokenLimit: number | null;
+  dailyCostLimitMicrosUsd: number | null;
+  totalCostLimitMicrosUsd: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -40,6 +40,7 @@ export interface CodexLocalAccessUsageStats {
   totalTokens: number;
   cachedTokens: number;
   reasoningTokens: number;
+  costMicrosUsd: number;
 }
 
 export interface CodexLocalAccessAccountStats {

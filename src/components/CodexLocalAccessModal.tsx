@@ -75,15 +75,15 @@ interface CodexLocalAccessModalProps {
   ) => Promise<unknown> | unknown;
   onAddApiKey: (payload: {
     name?: string;
-    dailyTokenLimit?: number | null;
-    totalTokenLimit?: number | null;
+    dailyCostLimitMicrosUsd?: number | null;
+    totalCostLimitMicrosUsd?: number | null;
   }) => Promise<unknown> | unknown;
   onUpdateApiKey: (payload: {
     keyId: string;
     name: string;
     enabled: boolean;
-    dailyTokenLimit?: number | null;
-    totalTokenLimit?: number | null;
+    dailyCostLimitMicrosUsd?: number | null;
+    totalCostLimitMicrosUsd?: number | null;
   }) => Promise<unknown> | unknown;
   onRemoveApiKey: (keyId: string) => Promise<unknown> | unknown;
   onRotateApiKey: (keyId?: string) => Promise<unknown> | unknown;
@@ -108,8 +108,8 @@ type CopyableField =
 type ApiKeyDraft = {
   name: string;
   enabled: boolean;
-  dailyTokenLimit: string;
-  totalTokenLimit: string;
+  dailyCostLimitMicrosUsd: string;
+  totalCostLimitMicrosUsd: string;
 };
 const CODEX_LOCAL_ACCESS_STATS_RANGE_STORAGE_KEY =
   'agtools.codex.local_access.stats_range.v1';
@@ -148,6 +148,18 @@ function formatLatencyMs(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '--';
   if (value >= 1000) return `${(value / 1000).toFixed(2)}s`;
   return `${Math.round(value)}ms`;
+}
+
+function formatMicrosUsd(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return '$0';
+  const dollars = value / 1_000_000;
+  if (dollars >= 0.01) return `$${dollars.toFixed(2)}`;
+  return `$${dollars.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}`;
+}
+
+function microsUsdToDollarInput(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return '';
+  return String(value / 1_000_000);
 }
 
 function formatQuotaPoolLabel(
@@ -232,8 +244,8 @@ export function CodexLocalAccessModal({
             name: t('codex.localAccess.defaultKeyName', '默认密钥'),
             key: collection.apiKey,
             enabled: true,
-            dailyTokenLimit: null,
-            totalTokenLimit: null,
+            dailyCostLimitMicrosUsd: null,
+            totalCostLimitMicrosUsd: null,
             createdAt: collection.createdAt,
             updatedAt: collection.updatedAt,
           },
@@ -369,8 +381,8 @@ export function CodexLocalAccessModal({
               name: t('codex.localAccess.defaultKeyName', '默认密钥'),
               key: collection.apiKey,
               enabled: true,
-              dailyTokenLimit: null,
-              totalTokenLimit: null,
+              dailyCostLimitMicrosUsd: null,
+              totalCostLimitMicrosUsd: null,
             },
           ]
         : [];
@@ -378,8 +390,8 @@ export function CodexLocalAccessModal({
       nextApiKeyDrafts[item.id] = {
         name: item.name,
         enabled: item.enabled,
-        dailyTokenLimit: item.dailyTokenLimit ? String(item.dailyTokenLimit) : '',
-        totalTokenLimit: item.totalTokenLimit ? String(item.totalTokenLimit) : '',
+        dailyCostLimitMicrosUsd: microsUsdToDollarInput(item.dailyCostLimitMicrosUsd),
+        totalCostLimitMicrosUsd: microsUsdToDollarInput(item.totalCostLimitMicrosUsd),
       };
     });
     setApiKeyDrafts(nextApiKeyDrafts);
@@ -756,14 +768,14 @@ export function CodexLocalAccessModal({
     }
   };
 
-  const parseTokenLimit = (value: string): number | null => {
+  const parseDollarLimitToMicrosUsd = (value: string): number | null => {
     const trimmed = value.trim();
     if (!trimmed) return null;
     const parsed = Number(trimmed);
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-      throw new Error(t('codex.localAccess.keyLimitInvalid', 'Token 限额必须为空或正整数'));
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      throw new Error(t('codex.localAccess.keyLimitInvalid', '美元限额必须为空或大于 0'));
     }
-    return parsed;
+    return Math.round(parsed * 1_000_000);
   };
 
   const updateApiKeyDraft = (keyId: string, patch: Partial<ApiKeyDraft>) => {
@@ -773,8 +785,8 @@ export function CodexLocalAccessModal({
         ...(prev[keyId] ?? {
           name: '',
           enabled: true,
-          dailyTokenLimit: '',
-          totalTokenLimit: '',
+          dailyCostLimitMicrosUsd: '',
+          totalCostLimitMicrosUsd: '',
         }),
         ...patch,
       },
@@ -786,8 +798,8 @@ export function CodexLocalAccessModal({
       async () => {
         await onAddApiKey({
           name: newApiKeyName,
-          dailyTokenLimit: parseTokenLimit(newApiKeyDailyLimit),
-          totalTokenLimit: parseTokenLimit(newApiKeyTotalLimit),
+          dailyCostLimitMicrosUsd: parseDollarLimitToMicrosUsd(newApiKeyDailyLimit),
+          totalCostLimitMicrosUsd: parseDollarLimitToMicrosUsd(newApiKeyTotalLimit),
         });
         setNewApiKeyName('');
         setNewApiKeyDailyLimit('');
@@ -807,8 +819,8 @@ export function CodexLocalAccessModal({
           keyId,
           name: draft.name,
           enabled: draft.enabled,
-          dailyTokenLimit: parseTokenLimit(draft.dailyTokenLimit),
-          totalTokenLimit: parseTokenLimit(draft.totalTokenLimit),
+          dailyCostLimitMicrosUsd: parseDollarLimitToMicrosUsd(draft.dailyCostLimitMicrosUsd),
+          totalCostLimitMicrosUsd: parseDollarLimitToMicrosUsd(draft.totalCostLimitMicrosUsd),
         });
       },
       t('codex.localAccess.keySaveSuccess', 'API 服务密钥已更新'),
@@ -1495,18 +1507,18 @@ export function CodexLocalAccessModal({
                     />
                     <input
                       type="number"
-                      min={1}
+                      min={0.01}
                       value={newApiKeyDailyLimit}
                       onChange={(event) => setNewApiKeyDailyLimit(event.target.value)}
-                      placeholder={t('codex.localAccess.dailyLimitPlaceholder', '每日 Token 上限')}
+                      placeholder={t('codex.localAccess.dailyLimitPlaceholder', '每日美元上限（$）')}
                       disabled={actionBusy}
                     />
                     <input
                       type="number"
-                      min={1}
+                      min={0.01}
                       value={newApiKeyTotalLimit}
                       onChange={(event) => setNewApiKeyTotalLimit(event.target.value)}
-                      placeholder={t('codex.localAccess.totalLimitPlaceholder', '总 Token 上限')}
+                      placeholder={t('codex.localAccess.totalLimitPlaceholder', '总美元上限（$）')}
                       disabled={actionBusy}
                     />
                     <button
@@ -1524,13 +1536,13 @@ export function CodexLocalAccessModal({
                       const draft = apiKeyDrafts[apiKey.id] ?? {
                         name: apiKey.name,
                         enabled: apiKey.enabled,
-                        dailyTokenLimit: apiKey.dailyTokenLimit ? String(apiKey.dailyTokenLimit) : '',
-                        totalTokenLimit: apiKey.totalTokenLimit ? String(apiKey.totalTokenLimit) : '',
+                        dailyCostLimitMicrosUsd: microsUsdToDollarInput(apiKey.dailyCostLimitMicrosUsd),
+                        totalCostLimitMicrosUsd: microsUsdToDollarInput(apiKey.totalCostLimitMicrosUsd),
                       };
                       const keyStats = windowStatsByKeyId.get(apiKey.id);
                       const usage = keyStats?.usage;
-                      const dailyLimit = apiKey.dailyTokenLimit ?? null;
-                      const totalLimit = apiKey.totalTokenLimit ?? null;
+                      const dailyLimit = apiKey.dailyCostLimitMicrosUsd ?? null;
+                      const totalLimit = apiKey.totalCostLimitMicrosUsd ?? null;
                       return (
                         <div key={apiKey.id} className="codex-local-access-api-key-row">
                           <div className="codex-local-access-api-key-main">
@@ -1556,37 +1568,38 @@ export function CodexLocalAccessModal({
                           <div className="codex-local-access-api-key-limits">
                             <input
                               type="number"
-                              min={1}
-                              value={draft.dailyTokenLimit}
-                              onChange={(event) => updateApiKeyDraft(apiKey.id, { dailyTokenLimit: event.target.value })}
-                              placeholder={t('codex.localAccess.dailyLimitPlaceholder', '每日 Token 上限')}
+                              min={0.01}
+                              value={draft.dailyCostLimitMicrosUsd}
+                              onChange={(event) => updateApiKeyDraft(apiKey.id, { dailyCostLimitMicrosUsd: event.target.value })}
+                              placeholder={t('codex.localAccess.dailyLimitPlaceholder', '每日美元上限（$）')}
                               disabled={actionBusy}
                             />
                             <input
                               type="number"
-                              min={1}
-                              value={draft.totalTokenLimit}
-                              onChange={(event) => updateApiKeyDraft(apiKey.id, { totalTokenLimit: event.target.value })}
-                              placeholder={t('codex.localAccess.totalLimitPlaceholder', '总 Token 上限')}
+                              min={0.01}
+                              value={draft.totalCostLimitMicrosUsd}
+                              onChange={(event) => updateApiKeyDraft(apiKey.id, { totalCostLimitMicrosUsd: event.target.value })}
+                              placeholder={t('codex.localAccess.totalLimitPlaceholder', '总美元上限（$）')}
                               disabled={actionBusy}
                             />
                           </div>
                           <div className="codex-local-access-api-key-stats">
                             <span>
-                              {t('codex.localAccess.keyStatsTokens', {
-                                used: formatCompactNumber(usage?.totalTokens ?? 0),
-                                defaultValue: '本周期 {{used}} Token',
+                              {t('codex.localAccess.keyStatsCost', {
+                                used: formatMicrosUsd(usage?.costMicrosUsd ?? 0),
+                                tokens: formatCompactNumber(usage?.totalTokens ?? 0),
+                                defaultValue: '本周期 {{used}} · {{tokens}} Token',
                               })}
                             </span>
                             <span>
                               {t('codex.localAccess.keyDailyLimitLabel', {
-                                limit: dailyLimit ? formatCompactNumber(dailyLimit) : t('common.unlimited', '不限'),
+                                limit: dailyLimit ? formatMicrosUsd(dailyLimit) : t('common.unlimited', '不限'),
                                 defaultValue: '日限额 {{limit}}',
                               })}
                             </span>
                             <span>
                               {t('codex.localAccess.keyTotalLimitLabel', {
-                                limit: totalLimit ? formatCompactNumber(totalLimit) : t('common.unlimited', '不限'),
+                                limit: totalLimit ? formatMicrosUsd(totalLimit) : t('common.unlimited', '不限'),
                                 defaultValue: '总限额 {{limit}}',
                               })}
                             </span>
