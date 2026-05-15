@@ -81,6 +81,7 @@
         "statusParsing": "Codex 가져오기 내용을 분석 중...",
         "statusImporting": "{{current}} / {{total}}번째 계정 가져오는 중",
         "statusRefreshing": "계정 목록 새로 고치는 중...",
+        "statusActivating": "가져온 계정으로 전환 중...",
         "statusSuccess": "가져오기 완료",
         "statusPartial": "일부 가져오기 완료",
         "statusFailed": "가져오기 실패",
@@ -364,7 +365,8 @@
       "instance": "인스턴스",
       "email": "계정",
       "quota": "쿼터 상태",
-      "actions": "작업"
+      "actions": "작업",
+      "speed": "속도"
     },
     "empty": {
       "title": "인스턴스가 없습니다",
@@ -442,7 +444,9 @@
           "contextWindowInvalid": "컨텍스트 창은 0보다 큰 정수여야 합니다.",
           "autoCompactInvalid": "자동 압축 한도는 0보다 큰 정수여야 합니다."
         }
-      }
+      },
+      "appSpeed": "속도",
+      "appSpeedDesc": "공식 Codex 시작 전에 선택한 속도를 기록합니다"
     },
     "quota": {
       "unbound": "연결된 계정 없음",
@@ -463,7 +467,8 @@
       "allAlreadyRunning": "모든 인스턴스가 이미 실행 중입니다",
       "noneRunning": "실행 중인 인스턴스를 찾을 수 없습니다",
       "syncThreadsNeedTwo": "스레드를 동기화하려면 인스턴스가 두 개 이상 필요합니다",
-      "launchPrepared": "실행 명령이 준비되었습니다"
+      "launchPrepared": "실행 명령이 준비되었습니다",
+      "speedUpdated": "속도가 업데이트되었습니다"
     },
     "runningDialog": {
       "title": "인스턴스가 이미 실행 중입니다",
@@ -740,7 +745,14 @@
       "codexSpecifiedAppPath": "지정 앱 경로",
       "codexSpecifiedAppPathDesc": "Codex 전환 시 함께 재시작할 앱 경로",
       "codexSpecifiedAppPathPlaceholder": "예: /Applications/Host.app",
-      "codexSpecifiedAppPathClear": "지우기"
+      "codexSpecifiedAppPathClear": "지우기",
+      "codexAppSpeed": "Codex 속도",
+      "codexAppSpeedDesc": "공식 Codex 시작 속도로 저장하고, 이 앱에서 Codex를 시작하기 전에 기록합니다.",
+      "codexAppSpeedStandard": "표준",
+      "codexAppSpeedFast": "빠름",
+      "codexAppSpeedLaunch": "Codex 재시작",
+      "codexAppSpeedSaveFailed": "Codex 속도를 저장하지 못했습니다: {{error}}",
+      "codexAppSpeedLaunchFailed": "Codex를 재시작하지 못했습니다: {{error}}"
     },
     "network": {
       "apiTitle": "반중력 조종석 API",
@@ -1615,6 +1627,13 @@
   },
   "codex": {
     "title": "Codex 계정 관리",
+    "newApi": {
+      "quota": {
+        "available": "할당량",
+        "unlimited": "무제한",
+        "usedHint": "{{used}} 사용됨"
+      }
+    },
     "subtitle": "OpenAI Codex 계정을 관리합니다",
     "instances": {
       "subtitle": "인스턴스별 독립 구성, 여러 계정으로 병렬 운영.",
@@ -1701,6 +1720,9 @@
       "title": "API 서비스",
       "accountCount": "{{count}}개 계정",
       "baseUrl": "주소",
+      "addressKind": "주소 유형",
+      "addressLocal": "로컬",
+      "addressLan": "로컬망",
       "apiKey": "키",
       "statusRunning": "실행 중",
       "statusStopped": "중지됨",
@@ -2106,7 +2128,8 @@
         "collapse": "접기",
         "repairVisibility": "표시 정보 복구",
         "restoreSessions": "세션 복원",
-        "copySessionId": "세션 ID 복사"
+        "copySessionId": "세션 ID 복사",
+        "copyToInstance": "인스턴스에 복사"
       },
       "confirm": {
         "title": "휴지통으로 이동",
@@ -2139,6 +2162,15 @@
         "emptyTitle": "휴지통이 비어 있습니다",
         "emptyDesc": "휴지통으로 이동한 세션이 여기에 표시됩니다.",
         "restoreAction": "선택한 세션 복원"
+      },
+      "targetModal": {
+        "title": "인스턴스에 복사",
+        "hint": "선택한 세션을 대상 인스턴스로 복사합니다. 같은 ID의 세션이 이미 있으면 건너뜁니다. 실행 중인 대상 인스턴스는 표시되기 전에 다시 시작해야 할 수 있습니다.",
+        "targetInstance": "대상 인스턴스",
+        "pickTarget": "대상 인스턴스 선택",
+        "selectedCount": "{{count}}개 세션 선택됨",
+        "existingCount": "대상에 이미 {{count}}개 있음",
+        "confirm": "세션 복사"
       }
     },
     "api": {
@@ -2163,7 +2195,8 @@
         "endpoint": "공급자 엔드포인트",
         "hint": "호환되는 Base URL이 자동으로 입력되었습니다. 필요하면 수동으로 수정할 수 있습니다.",
         "website": "웹사이트",
-        "apiKeyPage": "API 키 페이지"
+        "apiKeyPage": "API 키 페이지",
+        "getApiKey": "키 받기"
       },
       "providers": {
         "openai_official": {
@@ -2225,6 +2258,9 @@
         },
         "siliconflow": {
           "name": "SiliconFlow"
+        },
+        "cockpit_api": {
+          "name": "Cockpit Api"
         }
       }
     },
@@ -2385,6 +2421,30 @@
       "addShort": "추가",
       "saved": "계정 메모를 저장했습니다",
       "saveFailed": "계정 메모 저장 실패: {{error}}"
+    },
+    "cockpitApi": {
+      "panelTitle": "Cockpit Api 서비스 패널",
+      "servicePanel": "서비스 패널",
+      "balance": "잔액",
+      "requests": "요청",
+      "total": "합계",
+      "today": "오늘",
+      "periods": "기간",
+      "tokens": "토큰",
+      "quotaUsed": "사용량",
+      "modelStats": "모델 통계",
+      "noStats": "아직 통계 없음",
+      "refreshHint": "새로고침을 누르면 이 API 키의 통계를 동기화합니다.",
+      "dailyStats": "일별 통계"
+    },
+    "speed": {
+      "title": "속도",
+      "standard": "표준",
+      "standardDesc": "기본 속도, 일반 사용량",
+      "fast": "빠름",
+      "fastDesc": "1.5배 속도, 사용량 증가",
+      "saveSuccess": "속도가 업데이트되었습니다",
+      "saveFailed": "속도 저장 실패: {{error}}"
     }
   },
   "githubCopilot": {
@@ -2537,6 +2597,18 @@
           "contextWindowInvalid": "컨텍스트 창은 0보다 큰 정수여야 합니다.",
           "autoCompactInvalid": "자동 압축 한도는 0보다 큰 정수여야 합니다."
         }
+      },
+      "appSpeed": {
+        "title": "Codex 속도",
+        "desc": "시작 속도로 저장하며, 이 앱에서 Codex 시작 전에 기록합니다.",
+        "standard": "표준",
+        "fast": "빠름",
+        "launch": "재시작",
+        "loadFailed": "Codex 속도를 불러오지 못했습니다: {{error}}",
+        "saveSuccess": "Codex 시작 속도가 저장되었습니다.",
+        "saveFailed": "Codex 속도를 저장하지 못했습니다: {{error}}",
+        "launchSuccess": "저장된 속도로 Codex를 재시작했습니다.",
+        "launchFailed": "Codex를 재시작하지 못했습니다: {{error}}"
       }
     },
     "githubCopilot": {
@@ -3471,37 +3543,6 @@
         "descPlatform": "CodeBuddy CN 다중 인스턴스는 macOS, Windows, Linux에서만 지원됩니다."
       }
     },
-    "checkin": {
-      "title": "일일 체크인",
-      "modalTitle": "일일 체크인",
-      "status": "체크인 상태",
-      "checkedIn": "체크인 완료",
-      "notCheckedIn": "미체크인",
-      "button": "출석",
-      "button.loading": "체크인 중...",
-      "done": "완료",
-      "success": "체크인 성공! {{days}}일 연속",
-      "failure": "출석 실패: {{message}}",
-      "failure.network": "네트워크 오류입니다. 잠시 후 다시 시도해 주세요",
-      "lastCheckin": "마지막 체크인: {{time}}",
-      "streak": "{{days}}일 연속",
-      "reward": "보상: {{reward}}",
-      "refreshStatus": "새로고침",
-      "checkAll": "전체 체크인",
-      "noAccounts": "계정 없음",
-      "querying": "로딩 중...",
-      "streakDays": "{{days}}일",
-      "streakRewardCountdown": "보너스 보상까지 {{days}}일 남음",
-      "streakRewardToday": "오늘 보너스 보상을 받을 수 있습니다!",
-      "recentDates": "최근: ",
-      "quotaCategory": {
-        "base": "기본 패키지",
-        "activity": "활동 보너스",
-        "extra": "추가 크레딧",
-        "other": "기타",
-        "empty": "쿼터 데이터 없음"
-      }
-    },
     "syncFailed": "동기화 실패: {{error}}",
     "syncSuccess": "{{count}}개의 계정이 WorkBuddy에 동기화되었습니다",
     "syncToWorkbuddy": "WorkBuddy에 동기화"
@@ -3608,6 +3649,30 @@
     },
     "quota": {
       "usedOfTotal": "{{used}} / {{total}}"
+    },
+    "checkin": {
+      "title": "일일 체크인",
+      "modalTitle": "일일 체크인",
+      "status": "체크인 상태",
+      "checkedIn": "체크인 완료",
+      "notCheckedIn": "미체크인",
+      "button": "출석",
+      "button.loading": "체크인 중...",
+      "done": "완료",
+      "success": "체크인 성공! {{days}}일 연속",
+      "failure": "출석 실패: {{message}}",
+      "failure.network": "네트워크 오류입니다. 잠시 후 다시 시도해 주세요",
+      "lastCheckin": "마지막 체크인: {{time}}",
+      "streak": "{{days}}일 연속",
+      "reward": "보상: {{reward}}",
+      "refreshStatus": "새로고침",
+      "checkAll": "전체 체크인",
+      "noAccounts": "계정 없음",
+      "querying": "로딩 중...",
+      "streakDays": "{{days}}일",
+      "streakRewardCountdown": "보너스 보상까지 {{days}}일 남음",
+      "streakRewardToday": "오늘 보너스 보상을 받을 수 있습니다!",
+      "recentDates": "최근: "
     }
   },
   "zed": {

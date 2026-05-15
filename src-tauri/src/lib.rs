@@ -99,6 +99,11 @@ pub fn run() {
             // 存储全局 AppHandle
             let _ = APP_HANDLE.set(app.handle().clone());
 
+            // 启动时清理 WebKit LocalStorage WAL，防止无限膨胀
+            std::thread::spawn(|| {
+                modules::webkit_cache_maintenance::checkpoint_webkit_localstorage();
+            });
+
             // 初始化 Updater 插件
             #[cfg(desktop)]
             {
@@ -438,6 +443,11 @@ pub fn run() {
             commands::codex::open_codex_config_toml,
             commands::codex::get_codex_quick_config,
             commands::codex::save_codex_quick_config,
+            commands::codex::get_codex_app_speed_config,
+            commands::codex::save_codex_app_speed,
+            commands::codex::get_codex_api_service_app_speed_config,
+            commands::codex::save_codex_api_service_app_speed,
+            commands::codex::update_codex_account_app_speed,
             commands::codex::refresh_codex_account_profile,
             commands::codex::switch_codex_account,
             commands::codex::delete_codex_account,
@@ -587,8 +597,6 @@ pub fn run() {
             commands::codebuddy_cn::get_codebuddy_cn_accounts_index_path,
             commands::codebuddy_cn::inject_codebuddy_cn_to_vscode,
             commands::codebuddy_cn::sync_codebuddy_cn_to_workbuddy,
-            commands::codebuddy_cn::get_checkin_status_codebuddy_cn,
-            commands::codebuddy_cn::checkin_codebuddy_cn,
             // WorkBuddy Commands
             commands::workbuddy::list_workbuddy_accounts,
             commands::workbuddy::delete_workbuddy_account,
@@ -795,6 +803,7 @@ pub fn run() {
             commands::codex_instance::codex_save_instance_quick_config,
             commands::codex_instance::codex_open_instance_config_toml,
             commands::codex_instance::codex_sync_threads_across_instances,
+            commands::codex_instance::codex_sync_sessions_to_instance,
             commands::codex_instance::codex_repair_session_visibility_across_instances,
             commands::codex_instance::codex_list_sessions_across_instances,
             commands::codex_instance::codex_get_session_token_stats_across_instances,
@@ -829,10 +838,8 @@ pub fn run() {
         {
             match event {
                 RunEvent::Reopen { .. } => {
-                    if let Some(window) = app_handle.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.unminimize();
-                        let _ = window.set_focus();
+                    if let Err(err) = modules::floating_card_window::show_main_window(app_handle) {
+                        logger::log_warn(&format!("[Window] Dock 重新打开主窗口失败: {}", err));
                     }
                 }
                 RunEvent::Opened { urls } => {

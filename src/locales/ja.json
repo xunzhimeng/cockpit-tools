@@ -81,6 +81,7 @@
         "statusParsing": "Codex インポート内容を解析中...",
         "statusImporting": "{{current}} / {{total}} 個目のアカウントをインポート中",
         "statusRefreshing": "アカウント一覧を更新中...",
+        "statusActivating": "インポートしたアカウントに切り替え中...",
         "statusSuccess": "インポート完了",
         "statusPartial": "一部インポート完了",
         "statusFailed": "インポート失敗",
@@ -364,7 +365,8 @@
       "instance": "インスタンス",
       "email": "アカウント",
       "quota": "クォータ状況",
-      "actions": "操作"
+      "actions": "操作",
+      "speed": "速度"
     },
     "empty": {
       "title": "インスタンスがありません",
@@ -442,7 +444,9 @@
           "contextWindowInvalid": "コンテキスト ウィンドウは 0 より大きい整数でなければなりません。",
           "autoCompactInvalid": "自動圧縮制限は 0 より大きい整数である必要があります。"
         }
-      }
+      },
+      "appSpeed": "速度",
+      "appSpeedDesc": "公式 Codex の起動前に選択した速度を書き込みます"
     },
     "quota": {
       "unbound": "紐付けアカウントなし",
@@ -463,7 +467,8 @@
       "allAlreadyRunning": "すべてのインスタンスが既に実行中です",
       "noneRunning": "実行中のインスタンスが見つかりません",
       "syncThreadsNeedTwo": "スレッドを同期するには少なくとも2つのインスタンスが必要です",
-      "launchPrepared": "起動コマンドの準備ができました"
+      "launchPrepared": "起動コマンドの準備ができました",
+      "speedUpdated": "速度を更新しました"
     },
     "runningDialog": {
       "title": "インスタンスは既に実行中です",
@@ -740,7 +745,14 @@
       "codexSpecifiedAppPath": "指定アプリの起動パス",
       "codexSpecifiedAppPathDesc": "Codex切り替え時に連動再起動するアプリのパス",
       "codexSpecifiedAppPathPlaceholder": "例: /Applications/Host.app",
-      "codexSpecifiedAppPathClear": "クリア"
+      "codexSpecifiedAppPathClear": "クリア",
+      "codexAppSpeed": "Codex 速度",
+      "codexAppSpeedDesc": "公式 Codex の起動速度として保存し、このアプリから起動する前に書き込みます。",
+      "codexAppSpeedStandard": "標準",
+      "codexAppSpeedFast": "高速",
+      "codexAppSpeedLaunch": "Codex を再起動",
+      "codexAppSpeedSaveFailed": "Codex 速度の保存に失敗しました: {{error}}",
+      "codexAppSpeedLaunchFailed": "Codex の再起動に失敗しました: {{error}}"
     },
     "network": {
       "apiTitle": "反重力コックピット API",
@@ -1615,6 +1627,13 @@
   },
   "codex": {
     "title": "Codex アカウント管理",
+    "newApi": {
+      "quota": {
+        "available": "残高",
+        "unlimited": "無制限",
+        "usedHint": "使用済み {{used}}"
+      }
+    },
     "subtitle": "OpenAI Codex アカウントを管理します",
     "instances": {
       "subtitle": "インスタンスごとの独立設定、複数アカウントでの並列運用。",
@@ -1701,6 +1720,9 @@
       "title": "API サービス",
       "accountCount": "{{count}}アカウント",
       "baseUrl": "アドレス",
+      "addressKind": "アドレス種別",
+      "addressLocal": "ローカル",
+      "addressLan": "ローカル網",
       "apiKey": "キー",
       "statusRunning": "稼働中",
       "statusStopped": "停止",
@@ -2106,7 +2128,8 @@
         "collapse": "折りたたむ",
         "repairVisibility": "表示情報を修復",
         "restoreSessions": "セッションを復元",
-        "copySessionId": "セッション ID をコピー"
+        "copySessionId": "セッション ID をコピー",
+        "copyToInstance": "インスタンスへコピー"
       },
       "confirm": {
         "title": "ゴミ箱へ移動",
@@ -2139,6 +2162,15 @@
         "emptyTitle": "ゴミ箱は空です",
         "emptyDesc": "ゴミ箱へ移動したセッションはここに表示されます。",
         "restoreAction": "選択したセッションを復元"
+      },
+      "targetModal": {
+        "title": "インスタンスへコピー",
+        "hint": "選択したセッションを対象インスタンスへコピーします。同じ ID のセッションが既にある場合はスキップされます。実行中の対象インスタンスでは、表示に再起動が必要な場合があります。",
+        "targetInstance": "対象インスタンス",
+        "pickTarget": "対象インスタンスを選択",
+        "selectedCount": "{{count}} 件のセッションを選択中",
+        "existingCount": "対象に既に {{count}} 件あります",
+        "confirm": "セッションをコピー"
       }
     },
     "api": {
@@ -2163,7 +2195,8 @@
         "endpoint": "プロバイダーエンドポイント",
         "hint": "互換性のある Base URL を自動入力しました。必要なら手動で編集できます。",
         "website": "ウェブサイト",
-        "apiKeyPage": "API キーページ"
+        "apiKeyPage": "API キーページ",
+        "getApiKey": "キーを取得"
       },
       "providers": {
         "openai_official": {
@@ -2225,6 +2258,9 @@
         },
         "siliconflow": {
           "name": "SiliconFlow"
+        },
+        "cockpit_api": {
+          "name": "Cockpit Api"
         }
       }
     },
@@ -2385,6 +2421,30 @@
       "addShort": "追加",
       "saved": "アカウントメモを保存しました",
       "saveFailed": "アカウントメモの保存に失敗しました: {{error}}"
+    },
+    "cockpitApi": {
+      "panelTitle": "Cockpit Api サービスパネル",
+      "servicePanel": "サービスパネル",
+      "balance": "残高",
+      "requests": "リクエスト",
+      "total": "合計",
+      "today": "今日",
+      "periods": "期間",
+      "tokens": "トークン",
+      "quotaUsed": "使用量",
+      "modelStats": "モデル統計",
+      "noStats": "統計はまだありません",
+      "refreshHint": "更新をクリックすると、この API キーの統計を同期します。",
+      "dailyStats": "日別統計"
+    },
+    "speed": {
+      "title": "速度",
+      "standard": "標準",
+      "standardDesc": "既定の速度、通常の使用量",
+      "fast": "高速",
+      "fastDesc": "1.5倍速、使用量が増加",
+      "saveSuccess": "速度を更新しました",
+      "saveFailed": "速度の保存に失敗しました: {{error}}"
     }
   },
   "githubCopilot": {
@@ -2537,6 +2597,18 @@
           "contextWindowInvalid": "コンテキスト ウィンドウは 0 より大きい整数でなければなりません。",
           "autoCompactInvalid": "自動圧縮制限は 0 より大きい整数である必要があります。"
         }
+      },
+      "appSpeed": {
+        "title": "Codex 速度",
+        "desc": "起動速度として保存し、このアプリからの起動前に書き込みます。",
+        "standard": "標準",
+        "fast": "高速",
+        "launch": "再起動",
+        "loadFailed": "Codex 速度の読み込みに失敗しました: {{error}}",
+        "saveSuccess": "Codex の起動速度を保存しました。",
+        "saveFailed": "Codex 速度の保存に失敗しました: {{error}}",
+        "launchSuccess": "保存済み速度で Codex を再起動しました。",
+        "launchFailed": "Codex の再起動に失敗しました: {{error}}"
       }
     },
     "githubCopilot": {
@@ -3471,37 +3543,6 @@
         "descPlatform": "CodeBuddy CN のマルチインスタンスは macOS、Windows、Linux のみ対応しています。"
       }
     },
-    "checkin": {
-      "title": "デイリーチェックイン",
-      "modalTitle": "デイリーチェックイン",
-      "status": "チェックイン状態",
-      "checkedIn": "チェックイン済み",
-      "notCheckedIn": "未チェックイン",
-      "button": "チェックイン",
-      "button.loading": "チェックイン中...",
-      "done": "完了",
-      "success": "チェックイン成功！{{days}}日連続",
-      "failure": "チェックイン失敗: {{message}}",
-      "failure.network": "ネットワークエラーです。しばらくしてから再試行してください",
-      "lastCheckin": "最終チェックイン: {{time}}",
-      "streak": "{{days}}日連続",
-      "reward": "報酬: {{reward}}",
-      "refreshStatus": "更新",
-      "checkAll": "一括チェックイン",
-      "noAccounts": "アカウントがありません",
-      "querying": "読み込み中...",
-      "streakDays": "{{days}}日",
-      "streakRewardCountdown": "ボーナス報酬まであと{{days}}日",
-      "streakRewardToday": "本日はボーナス報酬を受け取れます！",
-      "recentDates": "最近: ",
-      "quotaCategory": {
-        "base": "基本パッケージ",
-        "activity": "アクティビティボーナス",
-        "extra": "追加クレジット",
-        "other": "その他",
-        "empty": "クォータデータがありません"
-      }
-    },
     "syncFailed": "同期に失敗: {{error}}",
     "syncSuccess": "{{count}} 件のアカウントを WorkBuddy に同期しました",
     "syncToWorkbuddy": "WorkBuddyに同期"
@@ -3608,6 +3649,30 @@
     },
     "quota": {
       "usedOfTotal": "{{used}} / {{total}}"
+    },
+    "checkin": {
+      "title": "デイリーチェックイン",
+      "modalTitle": "デイリーチェックイン",
+      "status": "チェックイン状態",
+      "checkedIn": "チェックイン済み",
+      "notCheckedIn": "未チェックイン",
+      "button": "チェックイン",
+      "button.loading": "チェックイン中...",
+      "done": "完了",
+      "success": "チェックイン成功！{{days}}日連続",
+      "failure": "チェックイン失敗: {{message}}",
+      "failure.network": "ネットワークエラーです。しばらくしてから再試行してください",
+      "lastCheckin": "最終チェックイン: {{time}}",
+      "streak": "{{days}}日連続",
+      "reward": "報酬: {{reward}}",
+      "refreshStatus": "更新",
+      "checkAll": "一括チェックイン",
+      "noAccounts": "アカウントがありません",
+      "querying": "読み込み中...",
+      "streakDays": "{{days}}日",
+      "streakRewardCountdown": "ボーナス報酬まであと{{days}}日",
+      "streakRewardToday": "本日はボーナス報酬を受け取れます！",
+      "recentDates": "最近: "
     }
   },
   "zed": {

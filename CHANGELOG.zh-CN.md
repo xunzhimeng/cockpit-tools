@@ -7,6 +7,58 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
 ---
+## [0.23.4] - 2026-05-14
+
+### 新增
+- **Codex 本地 API 服务现会在可用时提供局域网地址**：账号总览和 API 服务弹框可在本机地址与检测到的内网地址之间切换，并复制所选地址供同一局域网内其他设备使用。
+
+### 变更
+- **Codex 本地 API 服务上游请求现跟随应用全局代理设置**：网关会在代理设置变化时重建上游 HTTP 客户端，支持 `no_proxy`，并可使用 SOCKS 代理地址。
+
+### 修复
+- **Codex API Key provider 状态现与非 OAuth 本地网关行为一致**：API Key provider 写入时不再声明 OpenAI 授权或 websocket 要求；切回内置 OpenAI 时会移除受管 API Key provider 配置，同时保留无关的手动 provider。
+- **Codex 会话可见性修复现可恢复更多隐藏本地会话**：SQLite 修复会把已有首条用户消息的 thread 标记为用户可见，补齐缺失的 `thread_source`，并继续兼容只有 provider 字段的旧数据库结构。
+
+---
+## [0.23.3] - 2026-05-13
+
+### 新增
+- **Codex 官方 App 速度现可随账号、本地 API 服务和受管实例分别管理**：账号卡片/表格、API 服务卡片以及 Codex 实例列表/表单都可选择“标准 / 快速”，保存所选启动速度，并在切换账号、启用 API 服务和启动受管 App 前写入官方全局状态。
+
+### 变更
+- **Codex 默认 App 启动现会先准备真实启动状态再重启**：受管启动可在缺少路径时自动识别 Codex App，按默认 home/进程扫描关闭默认 Codex 进程而不只依赖已保存 PID，并在启动前写入所选速度。
+- **macOS Dock 和菜单栏重新打开统一使用共享主窗口恢复链路**：重新打开时会通过同一套后端逻辑恢复、取消隐藏、激活并聚焦主窗口。
+
+### 修复
+- **Windows 源码构建在旧调试程序仍运行时不再因替换 exe 失败中断**：Tauri dev/build 会在 Cargo 替换调试二进制前清理过期的 `target\debug\cockpit_tools.exe` 进程。
+
+---
+## [0.23.2] - 2026-05-12
+
+### 新增
+- **Codex 实例现支持 Windows 启动与进程识别**：Windows 可解析 Codex 路径，按应用用户数据目录识别托管实例进程，并通过 PowerShell、Windows Terminal 或 cmd 打开 Codex CLI 会话。
+- **Codex 会话管理现支持把选中会话复制到目标实例**：可将选中会话恢复到指定 Codex 实例，自动跳过目标中已有的同 ID 会话，写入前备份目标文件，并在目标实例运行中时提示可能需要重启后显示。
+
+### 修复
+- **Codex API Key 在不同 API 供应商之间切号后会话不再消失**：API Key 账号现统一向 `config.toml` 写入单一运行时 provider，保留所选 base URL 与 Responses wire API；切回内置 OAuth 时会移除该运行时 provider 状态。
+- **macOS 上 WebKit LocalStorage WAL 文件不再缺少启动 checkpoint 而持续膨胀**：应用启动时会在后台对 WebKit LocalStorage SQLite 数据库执行 checkpoint，避免 WAL 文件随时间持续堆积。
+
+---
+## [0.23.1] - 2026-05-12
+
+### 变更
+- **基于主线状态重新发布，用于替换已撤回的 v0.23.0 构建**：本版本保留稳定的 v0.22.22 代码路径，不包含误发布到 v0.23.0 的实验性 PR 集成改动。
+
+---
+## [0.22.22] - 2026-05-12
+
+### 新增
+- **Codex 模型供应商管理现支持新的供应商预设**：账号与模型供应商流程可识别并管理新增的 API Key 模式供应商选项。
+
+### 移除
+- **CodeBuddy CN 每日签到功能已移除**：CodeBuddy CN 账号页签到入口、签到弹框、实例页签到徽标、前端服务调用与桌面命令均已删除。
+
+---
 ## [0.22.21] - 2026-05-10
 
 ### 新增

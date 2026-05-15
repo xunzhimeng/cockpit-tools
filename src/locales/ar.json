@@ -81,6 +81,7 @@
         "statusParsing": "جارٍ تحليل محتوى استيراد Codex...",
         "statusImporting": "جارٍ استيراد الحساب {{current}} / {{total}}",
         "statusRefreshing": "جارٍ تحديث قائمة الحسابات...",
+        "statusActivating": "جارٍ التبديل إلى الحساب المستورد...",
         "statusSuccess": "اكتمل الاستيراد",
         "statusPartial": "اكتمل الاستيراد جزئيا",
         "statusFailed": "فشل الاستيراد",
@@ -410,7 +411,8 @@
       "instance": "المثيل",
       "email": "الحساب",
       "quota": "حالة الحصة",
-      "actions": "إجراءات"
+      "actions": "إجراءات",
+      "speed": "السرعة"
     },
     "empty": {
       "title": "لا توجد مثيلات",
@@ -488,7 +490,9 @@
           "contextWindowInvalid": "يجب أن تكون نافذة السياق عددًا صحيحًا أكبر من 0.",
           "autoCompactInvalid": "يجب أن يكون حد الضغط التلقائي عددًا صحيحًا أكبر من 0."
         }
-      }
+      },
+      "appSpeed": "السرعة",
+      "appSpeedDesc": "يكتب السرعة المختارة قبل تشغيل Codex الرسمي"
     },
     "quota": {
       "unbound": "حساب غير مرتبط",
@@ -509,7 +513,8 @@
       "allAlreadyRunning": "جميع المثيلات قيد التشغيل بالفعل",
       "noneRunning": "لا توجد مثيلات قيد التشغيل حاليًا",
       "syncThreadsNeedTwo": "يلزم وجود مثيلين على الأقل لمزامنة السلاسل",
-      "launchPrepared": "أمر التشغيل جاهز"
+      "launchPrepared": "أمر التشغيل جاهز",
+      "speedUpdated": "تم تحديث السرعة"
     },
     "runningDialog": {
       "title": "المثيل قيد التشغيل",
@@ -786,7 +791,14 @@
       "codexSpecifiedAppPath": "مسار التطبيق المحدد",
       "codexSpecifiedAppPathDesc": "مسار التطبيق الذي سيُعاد تشغيله مع تبديل Codex.",
       "codexSpecifiedAppPathPlaceholder": "مثال /Applications/Host.app",
-      "codexSpecifiedAppPathClear": "مسح"
+      "codexSpecifiedAppPathClear": "مسح",
+      "codexAppSpeed": "سرعة Codex",
+      "codexAppSpeedDesc": "يحفظ سرعة تشغيل Codex الرسمية ويكتبها قبل كل تشغيل من هذا التطبيق.",
+      "codexAppSpeedStandard": "قياسي",
+      "codexAppSpeedFast": "سريع",
+      "codexAppSpeedLaunch": "إعادة تشغيل Codex",
+      "codexAppSpeedSaveFailed": "فشل حفظ سرعة Codex: {{error}}",
+      "codexAppSpeedLaunchFailed": "فشلت إعادة تشغيل Codex: {{error}}"
     },
     "network": {
       "apiTitle": "واجهة برمجة تطبيقات قمرة القيادة المضادة للجاذبية",
@@ -1661,6 +1673,13 @@
   },
   "codex": {
     "title": "إدارة حسابات Codex",
+    "newApi": {
+      "quota": {
+        "available": "الحصة",
+        "unlimited": "غير محدود",
+        "usedHint": "المستخدم {{used}}"
+      }
+    },
     "subtitle": "إدارة حسابات OpenAI Codex",
     "instances": {
       "subtitle": "تكوين مستقل لكل مثيل، تشغيل متوازٍ بحسابات متعددة.",
@@ -1747,6 +1766,9 @@
       "title": "خدمة API",
       "accountCount": "{{count}} حسابات",
       "baseUrl": "العنوان",
+      "addressKind": "نوع العنوان",
+      "addressLocal": "محلي",
+      "addressLan": "شبكة محلية",
       "apiKey": "المفتاح",
       "statusRunning": "قيد التشغيل",
       "statusStopped": "متوقف",
@@ -2152,7 +2174,8 @@
         "collapse": "طي",
         "repairVisibility": "إصلاح الظهور",
         "restoreSessions": "استعادة الجلسات",
-        "copySessionId": "نسخ معرّف الجلسة"
+        "copySessionId": "نسخ معرّف الجلسة",
+        "copyToInstance": "نسخ إلى المثيل"
       },
       "confirm": {
         "title": "نقل إلى المهملات",
@@ -2185,6 +2208,15 @@
         "emptyTitle": "سلة المهملات فارغة",
         "emptyDesc": "ستظهر هنا الجلسات المنقولة إلى سلة المهملات.",
         "restoreAction": "استعادة الجلسات المحددة"
+      },
+      "targetModal": {
+        "title": "نسخ إلى المثيل",
+        "hint": "ينسخ الجلسات المحددة إلى المثيل الهدف. يتم تخطي الجلسات التي لها نفس ID هناك. قد تحتاج المثيلات الهدف قيد التشغيل إلى إعادة تشغيل قبل أن تظهر.",
+        "targetInstance": "المثيل الهدف",
+        "pickTarget": "اختر مثيلا هدفا",
+        "selectedCount": "تم تحديد {{count}} جلسة",
+        "existingCount": "{{count}} موجودة بالفعل في الهدف",
+        "confirm": "نسخ الجلسات"
       }
     },
     "api": {
@@ -2209,7 +2241,8 @@
         "endpoint": "نقطة نهاية المزوّد",
         "hint": "تم ملء Base URL متوافق تلقائيًا، وما زال بإمكانك تعديله يدويًا.",
         "website": "الموقع الإلكتروني",
-        "apiKeyPage": "صفحة مفتاح API"
+        "apiKeyPage": "صفحة مفتاح API",
+        "getApiKey": "الحصول على المفتاح"
       },
       "providers": {
         "openai_official": {
@@ -2271,6 +2304,9 @@
         },
         "siliconflow": {
           "name": "SiliconFlow"
+        },
+        "cockpit_api": {
+          "name": "Cockpit Api"
         }
       }
     },
@@ -2431,6 +2467,30 @@
       "addShort": "أضف ملاحظة",
       "saved": "تم حفظ ملاحظة الحساب",
       "saveFailed": "فشل حفظ ملاحظة الحساب: {{error}}"
+    },
+    "cockpitApi": {
+      "panelTitle": "لوحة خدمة Cockpit Api",
+      "servicePanel": "لوحة الخدمة",
+      "balance": "الرصيد",
+      "requests": "الطلبات",
+      "total": "الإجمالي",
+      "today": "اليوم",
+      "periods": "الفترات",
+      "tokens": "الرموز",
+      "quotaUsed": "المستهلك",
+      "modelStats": "إحصاءات النماذج",
+      "noStats": "لا توجد إحصاءات بعد",
+      "refreshHint": "انقر على التحديث لمزامنة إحصاءات مفتاح API هذا.",
+      "dailyStats": "الإحصاءات اليومية"
+    },
+    "speed": {
+      "title": "السرعة",
+      "standard": "قياسي",
+      "standardDesc": "السرعة الافتراضية، استخدام عادي",
+      "fast": "سريع",
+      "fastDesc": "سرعة 1.5x، استخدام أعلى",
+      "saveSuccess": "تم تحديث السرعة",
+      "saveFailed": "فشل حفظ السرعة: {{error}}"
     }
   },
   "githubCopilot": {
@@ -2583,6 +2643,18 @@
           "contextWindowInvalid": "يجب أن تكون نافذة السياق عددًا صحيحًا أكبر من 0.",
           "autoCompactInvalid": "يجب أن يكون حد الضغط التلقائي عددًا صحيحًا أكبر من 0."
         }
+      },
+      "appSpeed": {
+        "title": "سرعة Codex",
+        "desc": "تُحفظ كسرعة تشغيل وتُكتب قبل فتح Codex.",
+        "standard": "قياسي",
+        "fast": "سريع",
+        "launch": "إعادة تشغيل",
+        "loadFailed": "فشل تحميل سرعة Codex: {{error}}",
+        "saveSuccess": "تم حفظ سرعة تشغيل Codex.",
+        "saveFailed": "فشل حفظ سرعة Codex: {{error}}",
+        "launchSuccess": "تمت إعادة تشغيل Codex بالسرعة المحفوظة.",
+        "launchFailed": "فشلت إعادة تشغيل Codex: {{error}}"
       }
     },
     "githubCopilot": {
@@ -3517,37 +3589,6 @@
         "descPlatform": "تعدد مثيلات CodeBuddy CN مدعوم فقط على macOS وWindows وLinux."
       }
     },
-    "checkin": {
-      "title": "التسجيل اليومي",
-      "modalTitle": "التسجيل اليومي",
-      "status": "حالة التسجيل",
-      "checkedIn": "تم التسجيل",
-      "notCheckedIn": "لم يتم التسجيل",
-      "button": "تسجيل الحضور",
-      "button.loading": "جاري التسجيل...",
-      "done": "تم",
-      "success": "تم التسجيل بنجاح! {{days}} يوم متتالي",
-      "failure": "فشل تسجيل الحضور: {{message}}",
-      "failure.network": "خطأ في الشبكة، يرجى المحاولة لاحقًا",
-      "lastCheckin": "آخر تسجيل: {{time}}",
-      "streak": "{{days}} يوم متتالي",
-      "reward": "المكافأة: {{reward}}",
-      "refreshStatus": "تحديث الحالة",
-      "checkAll": "تسجيل الكل",
-      "noAccounts": "لا توجد حسابات",
-      "querying": "جارٍ التحميل...",
-      "streakDays": "{{days}} يوم",
-      "streakRewardCountdown": "يتبقى {{days}} يومًا للحصول على المكافأة الإضافية",
-      "streakRewardToday": "المكافأة الإضافية متاحة اليوم!",
-      "recentDates": "الأيام الأخيرة: ",
-      "quotaCategory": {
-        "base": "الباقة الأساسية",
-        "activity": "مكافأة النشاط",
-        "extra": "أرصدة إضافية",
-        "other": "أخرى",
-        "empty": "لا توجد بيانات حصة"
-      }
-    },
     "syncFailed": "فشل المزامنة: {{error}}",
     "syncSuccess": "تمت مزامنة {{count}} حساب/حسابات مع WorkBuddy",
     "syncToWorkbuddy": "مزامنة مع WorkBuddy"
@@ -3654,6 +3695,30 @@
     },
     "quota": {
       "usedOfTotal": "{{used}} / {{total}}"
+    },
+    "checkin": {
+      "title": "التسجيل اليومي",
+      "modalTitle": "التسجيل اليومي",
+      "status": "حالة التسجيل",
+      "checkedIn": "تم التسجيل",
+      "notCheckedIn": "لم يتم التسجيل",
+      "button": "تسجيل الحضور",
+      "button.loading": "جاري التسجيل...",
+      "done": "تم",
+      "success": "تم التسجيل بنجاح! {{days}} يوم متتالي",
+      "failure": "فشل تسجيل الحضور: {{message}}",
+      "failure.network": "خطأ في الشبكة، يرجى المحاولة لاحقًا",
+      "lastCheckin": "آخر تسجيل: {{time}}",
+      "streak": "{{days}} يوم متتالي",
+      "reward": "المكافأة: {{reward}}",
+      "refreshStatus": "تحديث الحالة",
+      "checkAll": "تسجيل الكل",
+      "noAccounts": "لا توجد حسابات",
+      "querying": "جارٍ التحميل...",
+      "streakDays": "{{days}} يوم",
+      "streakRewardCountdown": "يتبقى {{days}} يومًا للحصول على المكافأة الإضافية",
+      "streakRewardToday": "المكافأة الإضافية متاحة اليوم!",
+      "recentDates": "الأيام الأخيرة: "
     }
   },
   "zed": {

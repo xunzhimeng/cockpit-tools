@@ -81,6 +81,7 @@
         "statusParsing": "Codex-Importinhalt wird analysiert...",
         "statusImporting": "Konto {{current}} / {{total}} wird importiert",
         "statusRefreshing": "Kontoliste wird aktualisiert...",
+        "statusActivating": "Zum importierten Konto wechseln...",
         "statusSuccess": "Import abgeschlossen",
         "statusPartial": "Teilweise importiert",
         "statusFailed": "Import fehlgeschlagen",
@@ -364,7 +365,8 @@
       "instance": "Instanz",
       "email": "Konto",
       "quota": "Quota-Status",
-      "actions": "Aktionen"
+      "actions": "Aktionen",
+      "speed": "Tempo"
     },
     "empty": {
       "title": "Keine Instanzen",
@@ -442,7 +444,9 @@
           "contextWindowInvalid": "Das Kontextfenster muss eine Ganzzahl größer als 0 sein.",
           "autoCompactInvalid": "Der Grenzwert für die automatische Komprimierung muss eine Ganzzahl größer als 0 sein."
         }
-      }
+      },
+      "appSpeed": "Tempo",
+      "appSpeedDesc": "Schreibt das gewählte Tempo vor dem Start von Codex"
     },
     "quota": {
       "unbound": "Nicht gekoppelt",
@@ -463,7 +467,8 @@
       "allAlreadyRunning": "Alle Instanzen laufen bereits",
       "noneRunning": "Keine laufenden Instanzen gefunden",
       "syncThreadsNeedTwo": "Mindestens zwei Instanzen sind erforderlich, um Threads zu synchronisieren",
-      "launchPrepared": "Startbefehl ist bereit"
+      "launchPrepared": "Startbefehl ist bereit",
+      "speedUpdated": "Tempo aktualisiert"
     },
     "runningDialog": {
       "title": "Instanz läuft bereits",
@@ -740,7 +745,14 @@
       "codexSpecifiedAppPath": "Pfad der angegebenen App",
       "codexSpecifiedAppPathDesc": "Pfad der App, die beim Codex-Wechsel mit neu gestartet wird.",
       "codexSpecifiedAppPathPlaceholder": "z. B. /Applications/Host.app",
-      "codexSpecifiedAppPathClear": "Leeren"
+      "codexSpecifiedAppPathClear": "Leeren",
+      "codexAppSpeed": "Codex-Geschwindigkeit",
+      "codexAppSpeedDesc": "Speichert die offizielle Codex-Startgeschwindigkeit und schreibt sie vor jedem Start aus dieser App.",
+      "codexAppSpeedStandard": "Normal",
+      "codexAppSpeedFast": "Schnell",
+      "codexAppSpeedLaunch": "Codex neu starten",
+      "codexAppSpeedSaveFailed": "Codex-Geschwindigkeit konnte nicht gespeichert werden: {{error}}",
+      "codexAppSpeedLaunchFailed": "Codex konnte nicht neu gestartet werden: {{error}}"
     },
     "network": {
       "apiTitle": "Antigravity-Cockpit-API",
@@ -1615,6 +1627,13 @@
   },
   "codex": {
     "title": "Codex-Konten verwalten",
+    "newApi": {
+      "quota": {
+        "available": "Kontingent",
+        "unlimited": "Unbegrenzt",
+        "usedHint": "Verbraucht {{used}}"
+      }
+    },
     "subtitle": "Verwalte deine OpenAI Codex-Konten",
     "instances": {
       "subtitle": "Unabhängige Konfiguration pro Instanz, paralleler Betrieb mit mehreren Konten.",
@@ -1701,6 +1720,9 @@
       "title": "API-Dienst",
       "accountCount": "{{count}} Konten",
       "baseUrl": "Adresse",
+      "addressKind": "Adresstyp",
+      "addressLocal": "Lokal",
+      "addressLan": "Heimnetz",
       "apiKey": "Schlüssel",
       "statusRunning": "Aktiv",
       "statusStopped": "Gestoppt",
@@ -2106,7 +2128,8 @@
         "collapse": "Einklappen",
         "repairVisibility": "Sichtbarkeit reparieren",
         "restoreSessions": "Sitzungen wiederherstellen",
-        "copySessionId": "Sitzungs-ID kopieren"
+        "copySessionId": "Sitzungs-ID kopieren",
+        "copyToInstance": "In Instanz kopieren"
       },
       "confirm": {
         "title": "In den Papierkorb verschieben",
@@ -2139,6 +2162,15 @@
         "emptyTitle": "Papierkorb ist leer",
         "emptyDesc": "In den Papierkorb verschobene Sitzungen erscheinen hier.",
         "restoreAction": "Ausgewählte Sitzungen wiederherstellen"
+      },
+      "targetModal": {
+        "title": "In Instanz kopieren",
+        "hint": "Kopiert die ausgewählten Sitzungen in die Zielinstanz. Sitzungen mit derselben ID, die dort bereits vorhanden sind, werden übersprungen. Laufende Zielinstanzen müssen eventuell neu gestartet werden, bevor sie erscheinen.",
+        "targetInstance": "Zielinstanz",
+        "pickTarget": "Zielinstanz auswählen",
+        "selectedCount": "{{count}} Sitzung(en) ausgewählt",
+        "existingCount": "{{count}} bereits im Ziel",
+        "confirm": "Sitzungen kopieren"
       }
     },
     "api": {
@@ -2163,7 +2195,8 @@
         "endpoint": "Anbieter-Endpunkt",
         "hint": "Eine kompatible Base URL wurde automatisch eingetragen. Sie können sie weiterhin manuell bearbeiten.",
         "website": "Website",
-        "apiKeyPage": "API-Key-Seite"
+        "apiKeyPage": "API-Key-Seite",
+        "getApiKey": "Schlüssel holen"
       },
       "providers": {
         "openai_official": {
@@ -2225,6 +2258,9 @@
         },
         "siliconflow": {
           "name": "SiliconFlow"
+        },
+        "cockpit_api": {
+          "name": "Cockpit Api"
         }
       }
     },
@@ -2385,6 +2421,30 @@
       "addShort": "Notiz",
       "saved": "Kontonotiz gespeichert",
       "saveFailed": "Kontonotiz konnte nicht gespeichert werden: {{error}}"
+    },
+    "cockpitApi": {
+      "panelTitle": "Cockpit Api Dienstpanel",
+      "servicePanel": "Dienstpanel",
+      "balance": "Guthaben",
+      "requests": "Anfragen",
+      "total": "Gesamt",
+      "today": "Heute",
+      "periods": "Zeiträume",
+      "tokens": "Token",
+      "quotaUsed": "Verbraucht",
+      "modelStats": "Modellstatistik",
+      "noStats": "Noch keine Statistik",
+      "refreshHint": "Klicke auf Aktualisieren, um die Statistik dieses API-Schlüssels zu synchronisieren.",
+      "dailyStats": "Tägliche Statistiken"
+    },
+    "speed": {
+      "title": "Tempo",
+      "standard": "Normal",
+      "standardDesc": "Standardtempo, normaler Verbrauch",
+      "fast": "Schnell",
+      "fastDesc": "1,5-faches Tempo, höherer Verbrauch",
+      "saveSuccess": "Tempo aktualisiert",
+      "saveFailed": "Tempo konnte nicht gespeichert werden: {{error}}"
     }
   },
   "githubCopilot": {
@@ -2537,6 +2597,18 @@
           "contextWindowInvalid": "Das Kontextfenster muss eine Ganzzahl größer als 0 sein.",
           "autoCompactInvalid": "Der Grenzwert für die automatische Komprimierung muss eine Ganzzahl größer als 0 sein."
         }
+      },
+      "appSpeed": {
+        "title": "Codex-Geschwindigkeit",
+        "desc": "Als Startgeschwindigkeit gespeichert; wird vor dem Start geschrieben.",
+        "standard": "Normal",
+        "fast": "Schnell",
+        "launch": "Neustart",
+        "loadFailed": "Codex-Geschwindigkeit konnte nicht geladen werden: {{error}}",
+        "saveSuccess": "Codex-Startgeschwindigkeit gespeichert.",
+        "saveFailed": "Codex-Geschwindigkeit konnte nicht gespeichert werden: {{error}}",
+        "launchSuccess": "Codex wurde mit der gespeicherten Geschwindigkeit neu gestartet.",
+        "launchFailed": "Codex konnte nicht neu gestartet werden: {{error}}"
       }
     },
     "githubCopilot": {
@@ -3471,37 +3543,6 @@
         "descPlatform": "CodeBuddy CN-Mehrinstanzen werden nur unter macOS, Windows und Linux unterstützt."
       }
     },
-    "checkin": {
-      "title": "Täglicher Check-in",
-      "modalTitle": "Täglicher Check-in",
-      "status": "Check-in-Status",
-      "checkedIn": "Eingecheckt",
-      "notCheckedIn": "Nicht eingecheckt",
-      "button": "Einchecken",
-      "button.loading": "Check-in läuft...",
-      "done": "Fertig",
-      "success": "Check-in erfolgreich! {{days}} Tage Serie",
-      "failure": "Einchecken fehlgeschlagen: {{message}}",
-      "failure.network": "Netzwerkfehler, bitte später erneut versuchen",
-      "lastCheckin": "Letzter Check-in: {{time}}",
-      "streak": "{{days}}-Tage-Serie",
-      "reward": "Belohnung: {{reward}}",
-      "refreshStatus": "Aktualisieren",
-      "checkAll": "Alle einchecken",
-      "noAccounts": "Keine Konten",
-      "querying": "Wird geladen...",
-      "streakDays": "{{days}} Tage",
-      "streakRewardCountdown": "Noch {{days}} Tage bis zur Bonusbelohnung",
-      "streakRewardToday": "Bonusbelohnung heute verfügbar!",
-      "recentDates": "Kürzlich: ",
-      "quotaCategory": {
-        "base": "Basispaket",
-        "activity": "Aktivitätsbonus",
-        "extra": "Zusatzguthaben",
-        "other": "Sonstiges",
-        "empty": "Keine Kontingentdaten"
-      }
-    },
     "syncFailed": "Synchronisierung fehlgeschlagen: {{error}}",
     "syncSuccess": "{{count}} Konto/-en mit WorkBuddy synchronisiert",
     "syncToWorkbuddy": "Mit WorkBuddy synchronisieren"
@@ -3608,6 +3649,30 @@
     },
     "quota": {
       "usedOfTotal": "{{used}} / {{total}}"
+    },
+    "checkin": {
+      "title": "Täglicher Check-in",
+      "modalTitle": "Täglicher Check-in",
+      "status": "Check-in-Status",
+      "checkedIn": "Eingecheckt",
+      "notCheckedIn": "Nicht eingecheckt",
+      "button": "Einchecken",
+      "button.loading": "Check-in läuft...",
+      "done": "Fertig",
+      "success": "Check-in erfolgreich! {{days}} Tage Serie",
+      "failure": "Einchecken fehlgeschlagen: {{message}}",
+      "failure.network": "Netzwerkfehler, bitte später erneut versuchen",
+      "lastCheckin": "Letzter Check-in: {{time}}",
+      "streak": "{{days}}-Tage-Serie",
+      "reward": "Belohnung: {{reward}}",
+      "refreshStatus": "Aktualisieren",
+      "checkAll": "Alle einchecken",
+      "noAccounts": "Keine Konten",
+      "querying": "Wird geladen...",
+      "streakDays": "{{days}} Tage",
+      "streakRewardCountdown": "Noch {{days}} Tage bis zur Bonusbelohnung",
+      "streakRewardToday": "Bonusbelohnung heute verfügbar!",
+      "recentDates": "Kürzlich: "
     }
   },
   "zed": {

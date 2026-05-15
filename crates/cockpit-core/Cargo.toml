@@ -32,6 +32,7 @@ tracing-appender.workspace = true
 tracing-log.workspace = true
 trash.workspace = true
 tauri.workspace = true
+tauri-plugin-notification.workspace = true
 rand.workspace = true
 sha2.workspace = true
 tokio-tungstenite.workspace = true
@@ -41,17 +42,16 @@ rcgen.workspace = true
 tokio-rustls.workspace = true
 libc.workspace = true
 aes.workspace = true
+aes-gcm.workspace = true
 cbc.workspace = true
 pbkdf2.workspace = true
 sha1.workspace = true
 tiny_http.workspace = true
 rsa.workspace = true
 serde_urlencoded.workspace = true
-tauri-plugin-notification = "2"
-
-[target.'cfg(target_os = "windows")'.dependencies]
-aes-gcm = "0.10"
-windows = { version = "0.58", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 mac-notification-sys.workspace = true
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows.workspace = true

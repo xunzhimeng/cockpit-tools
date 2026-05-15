@@ -81,6 +81,7 @@
         "statusParsing": "Analisi del contenuto di importazione Codex...",
         "statusImporting": "Importazione account {{current}} / {{total}}",
         "statusRefreshing": "Aggiornamento elenco account...",
+        "statusActivating": "Passaggio all'account importato...",
         "statusSuccess": "Importazione completata",
         "statusPartial": "Importazione parziale completata",
         "statusFailed": "Importazione non riuscita",
@@ -364,7 +365,8 @@
       "instance": "Istanza",
       "email": "Account",
       "quota": "Stato quota",
-      "actions": "Azioni"
+      "actions": "Azioni",
+      "speed": "Velocità"
     },
     "empty": {
       "title": "Nessuna istanza",
@@ -442,7 +444,9 @@
           "contextWindowInvalid": "La finestra di contesto deve essere un numero intero maggiore di 0.",
           "autoCompactInvalid": "Il limite di compattazione automatica deve essere un numero intero maggiore di 0."
         }
-      }
+      },
+      "appSpeed": "Velocità",
+      "appSpeedDesc": "Scrive la velocità scelta prima di avviare Codex ufficiale"
     },
     "quota": {
       "unbound": "Account non collegato",
@@ -463,7 +467,8 @@
       "allAlreadyRunning": "Tutte le istanze sono già in esecuzione",
       "noneRunning": "Nessuna istanza in esecuzione trovata",
       "syncThreadsNeedTwo": "Sono necessarie almeno due istanze per sincronizzare i thread",
-      "launchPrepared": "Il comando di avvio è pronto"
+      "launchPrepared": "Il comando di avvio è pronto",
+      "speedUpdated": "Velocità aggiornata"
     },
     "runningDialog": {
       "title": "L'istanza è già in esecuzione",
@@ -740,7 +745,14 @@
       "codexSpecifiedAppPath": "Percorso app specificata",
       "codexSpecifiedAppPathDesc": "Percorso dell'app da riavviare insieme al cambio Codex.",
       "codexSpecifiedAppPathPlaceholder": "Ad esempio /Applications/Host.app",
-      "codexSpecifiedAppPathClear": "Cancella"
+      "codexSpecifiedAppPathClear": "Cancella",
+      "codexAppSpeed": "Velocità Codex",
+      "codexAppSpeedDesc": "Salva la velocità di avvio ufficiale di Codex e la scrive prima di ogni avvio da questa app.",
+      "codexAppSpeedStandard": "Normale",
+      "codexAppSpeedFast": "Rapida",
+      "codexAppSpeedLaunch": "Riavvia Codex",
+      "codexAppSpeedSaveFailed": "Impossibile salvare la velocità di Codex: {{error}}",
+      "codexAppSpeedLaunchFailed": "Impossibile riavviare Codex: {{error}}"
     },
     "network": {
       "apiTitle": "API della cabina di pilotaggio antigravità",
@@ -1615,6 +1627,13 @@
   },
   "codex": {
     "title": "Gestione account Codex",
+    "newApi": {
+      "quota": {
+        "available": "Credito",
+        "unlimited": "Illimitata",
+        "usedHint": "Usati {{used}}"
+      }
+    },
     "subtitle": "Gestisci i tuoi account OpenAI Codex",
     "instances": {
       "subtitle": "Configurazione indipendente per istanza, operazione parallela con più account.",
@@ -1701,6 +1720,9 @@
       "title": "Servizio API",
       "accountCount": "{{count}} account",
       "baseUrl": "Indirizzo",
+      "addressKind": "Tipo indirizzo",
+      "addressLocal": "Locale",
+      "addressLan": "Rete locale",
       "apiKey": "Chiave",
       "statusRunning": "In esecuzione",
       "statusStopped": "Arrestato",
@@ -2106,7 +2128,8 @@
         "collapse": "Comprimi",
         "repairVisibility": "Ripara visibilità",
         "restoreSessions": "Ripristina sessioni",
-        "copySessionId": "Copia ID sessione"
+        "copySessionId": "Copia ID sessione",
+        "copyToInstance": "Copia in istanza"
       },
       "confirm": {
         "title": "Sposta nel cestino",
@@ -2139,6 +2162,15 @@
         "emptyTitle": "Il cestino è vuoto",
         "emptyDesc": "Le sessioni spostate nel cestino appariranno qui.",
         "restoreAction": "Ripristina le sessioni selezionate"
+      },
+      "targetModal": {
+        "title": "Copia in istanza",
+        "hint": "Copia le sessioni selezionate nell’istanza di destinazione. Le sessioni con lo stesso ID già presenti vengono ignorate. Le istanze di destinazione in esecuzione potrebbero richiedere un riavvio prima di comparire.",
+        "targetInstance": "Istanza destinazione",
+        "pickTarget": "Seleziona un’istanza destinazione",
+        "selectedCount": "{{count}} sessioni selezionate",
+        "existingCount": "{{count}} già nella destinazione",
+        "confirm": "Copia sessioni"
       }
     },
     "api": {
@@ -2163,7 +2195,8 @@
         "endpoint": "Endpoint del provider",
         "hint": "È stata compilata automaticamente una Base URL compatibile. Puoi comunque modificarla manualmente.",
         "website": "Sito web",
-        "apiKeyPage": "Pagina della chiave API"
+        "apiKeyPage": "Pagina della chiave API",
+        "getApiKey": "Ottieni chiave"
       },
       "providers": {
         "openai_official": {
@@ -2225,6 +2258,9 @@
         },
         "siliconflow": {
           "name": "SiliconFlow"
+        },
+        "cockpit_api": {
+          "name": "Cockpit Api"
         }
       }
     },
@@ -2385,6 +2421,30 @@
       "addShort": "Aggiungi",
       "saved": "Nota account salvata",
       "saveFailed": "Salvataggio nota account non riuscito: {{error}}"
+    },
+    "cockpitApi": {
+      "panelTitle": "Pannello servizio Cockpit Api",
+      "servicePanel": "Pannello servizio",
+      "balance": "Saldo",
+      "requests": "Richieste",
+      "total": "Totale",
+      "today": "Oggi",
+      "periods": "Periodi",
+      "tokens": "Token",
+      "quotaUsed": "Usato",
+      "modelStats": "Statistiche modelli",
+      "noStats": "Nessuna statistica",
+      "refreshHint": "Fai clic su aggiorna per sincronizzare le statistiche di questa chiave API.",
+      "dailyStats": "Statistiche giornaliere"
+    },
+    "speed": {
+      "title": "Velocità",
+      "standard": "Normale",
+      "standardDesc": "Velocità predefinita, uso normale",
+      "fast": "Rapida",
+      "fastDesc": "Velocità 1,5x, uso maggiore",
+      "saveSuccess": "Velocità aggiornata",
+      "saveFailed": "Impossibile salvare la velocità: {{error}}"
     }
   },
   "githubCopilot": {
@@ -2537,6 +2597,18 @@
           "contextWindowInvalid": "La finestra di contesto deve essere un numero intero maggiore di 0.",
           "autoCompactInvalid": "Il limite di compattazione automatica deve essere un numero intero maggiore di 0."
         }
+      },
+      "appSpeed": {
+        "title": "Velocità Codex",
+        "desc": "Salvata come velocità di avvio; scritta prima di avviare Codex.",
+        "standard": "Normale",
+        "fast": "Rapida",
+        "launch": "Riavvia",
+        "loadFailed": "Impossibile caricare la velocità di Codex: {{error}}",
+        "saveSuccess": "Velocità di avvio di Codex salvata.",
+        "saveFailed": "Impossibile salvare la velocità di Codex: {{error}}",
+        "launchSuccess": "Codex riavviato con la velocità salvata.",
+        "launchFailed": "Impossibile riavviare Codex: {{error}}"
       }
     },
     "githubCopilot": {
@@ -3471,37 +3543,6 @@
         "descPlatform": "La multi-istanza CodeBuddy CN è supportata solo su macOS, Windows e Linux."
       }
     },
-    "checkin": {
-      "title": "Check-in giornaliero",
-      "modalTitle": "Check-in giornaliero",
-      "status": "Stato check-in",
-      "checkedIn": "Check-in effettuato",
-      "notCheckedIn": "Non effettuato",
-      "button": "Registra presenza",
-      "button.loading": "Check-in in corso...",
-      "done": "Fatto",
-      "success": "Check-in riuscito! Serie di {{days}} giorni",
-      "failure": "Registrazione non riuscita: {{message}}",
-      "failure.network": "Errore di rete, riprova più tardi",
-      "lastCheckin": "Ultimo check-in: {{time}}",
-      "streak": "Serie di {{days}} giorni",
-      "reward": "Ricompensa: {{reward}}",
-      "refreshStatus": "Aggiorna",
-      "checkAll": "Check-in per tutti",
-      "noAccounts": "Nessun account",
-      "querying": "Caricamento...",
-      "streakDays": "{{days}} giorni",
-      "streakRewardCountdown": "Mancano {{days}} giorni alla ricompensa bonus",
-      "streakRewardToday": "Ricompensa bonus disponibile oggi!",
-      "recentDates": "Recenti: ",
-      "quotaCategory": {
-        "base": "Pacchetto base",
-        "activity": "Bonus attività",
-        "extra": "Crediti extra",
-        "other": "Altro",
-        "empty": "Nessun dato quota"
-      }
-    },
     "syncFailed": "Sincronizzazione fallita: {{error}}",
     "syncSuccess": "{{count}} account sincronizzato/i con WorkBuddy",
     "syncToWorkbuddy": "Sincronizza con WorkBuddy"
@@ -3608,6 +3649,30 @@
     },
     "quota": {
       "usedOfTotal": "{{used}} / {{total}}"
+    },
+    "checkin": {
+      "title": "Check-in giornaliero",
+      "modalTitle": "Check-in giornaliero",
+      "status": "Stato check-in",
+      "checkedIn": "Check-in effettuato",
+      "notCheckedIn": "Non effettuato",
+      "button": "Registra presenza",
+      "button.loading": "Check-in in corso...",
+      "done": "Fatto",
+      "success": "Check-in riuscito! Serie di {{days}} giorni",
+      "failure": "Registrazione non riuscita: {{message}}",
+      "failure.network": "Errore di rete, riprova più tardi",
+      "lastCheckin": "Ultimo check-in: {{time}}",
+      "streak": "Serie di {{days}} giorni",
+      "reward": "Ricompensa: {{reward}}",
+      "refreshStatus": "Aggiorna",
+      "checkAll": "Check-in per tutti",
+      "noAccounts": "Nessun account",
+      "querying": "Caricamento...",
+      "streakDays": "{{days}} giorni",
+      "streakRewardCountdown": "Mancano {{days}} giorni alla ricompensa bonus",
+      "streakRewardToday": "Ricompensa bonus disponibile oggi!",
+      "recentDates": "Recenti: "
     }
   },
   "zed": {

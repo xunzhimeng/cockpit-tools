@@ -81,6 +81,7 @@
         "statusParsing": "Разбор содержимого импорта Codex...",
         "statusImporting": "Импорт аккаунта {{current}} / {{total}}",
         "statusRefreshing": "Обновление списка аккаунтов...",
+        "statusActivating": "Переключение на импортированный аккаунт...",
         "statusSuccess": "Импорт завершен",
         "statusPartial": "Импорт частично завершен",
         "statusFailed": "Ошибка импорта",
@@ -364,7 +365,8 @@
       "instance": "Инстанс",
       "email": "Аккаунт",
       "quota": "Статус квоты",
-      "actions": "Действия"
+      "actions": "Действия",
+      "speed": "Скорость"
     },
     "empty": {
       "title": "Нет инстансов",
@@ -442,7 +444,9 @@
           "contextWindowInvalid": "Контекстное окно должно быть целым числом больше 0.",
           "autoCompactInvalid": "Предел автокомпактности должен быть целым числом больше 0."
         }
-      }
+      },
+      "appSpeed": "Скорость",
+      "appSpeedDesc": "Записывает выбранную скорость перед запуском Codex"
     },
     "quota": {
       "unbound": "Аккаунт не привязан",
@@ -463,7 +467,8 @@
       "allAlreadyRunning": "Все инстансы уже запущены",
       "noneRunning": "Работающих инстансов не найдено",
       "syncThreadsNeedTwo": "Для синхронизации тредов требуется как минимум два экземпляра",
-      "launchPrepared": "Команда запуска готова"
+      "launchPrepared": "Команда запуска готова",
+      "speedUpdated": "Скорость обновлена"
     },
     "runningDialog": {
       "title": "Инстанс уже запущен",
@@ -740,7 +745,14 @@
       "codexSpecifiedAppPath": "Путь к указанному приложению",
       "codexSpecifiedAppPathDesc": "Путь приложения, которое перезапускается вместе с переключением Codex.",
       "codexSpecifiedAppPathPlaceholder": "Например /Applications/Host.app",
-      "codexSpecifiedAppPathClear": "Очистить"
+      "codexSpecifiedAppPathClear": "Очистить",
+      "codexAppSpeed": "Скорость Codex",
+      "codexAppSpeedDesc": "Сохраняет скорость запуска Codex и записывает её перед каждым запуском из этого приложения.",
+      "codexAppSpeedStandard": "Стандарт",
+      "codexAppSpeedFast": "Быстро",
+      "codexAppSpeedLaunch": "Перезапустить Codex",
+      "codexAppSpeedSaveFailed": "Не удалось сохранить скорость Codex: {{error}}",
+      "codexAppSpeedLaunchFailed": "Не удалось перезапустить Codex: {{error}}"
     },
     "network": {
       "apiTitle": "API антигравитационной кабины",
@@ -1615,6 +1627,13 @@
   },
   "codex": {
     "title": "Управление аккаунтами Codex",
+    "newApi": {
+      "quota": {
+        "available": "Квота",
+        "unlimited": "Без лимита",
+        "usedHint": "Использовано {{used}}"
+      }
+    },
     "subtitle": "Управляйте аккаунтами OpenAI Codex",
     "instances": {
       "subtitle": "Независимая конфигурация для каждого экземпляра, параллельная работа с несколькими аккаунтами.",
@@ -1701,6 +1720,9 @@
       "title": "API-сервис",
       "accountCount": "{{count}} аккаунтов",
       "baseUrl": "Адрес",
+      "addressKind": "Тип адреса",
+      "addressLocal": "Локально",
+      "addressLan": "Локальная сеть",
       "apiKey": "Ключ",
       "statusRunning": "Запущено",
       "statusStopped": "Остановлено",
@@ -2106,7 +2128,8 @@
         "collapse": "Свернуть",
         "repairVisibility": "Исправить видимость",
         "restoreSessions": "Восстановить сессии",
-        "copySessionId": "Копировать ID сессии"
+        "copySessionId": "Копировать ID сессии",
+        "copyToInstance": "Копировать в экземпляр"
       },
       "confirm": {
         "title": "Переместить в корзину",
@@ -2139,6 +2162,15 @@
         "emptyTitle": "Корзина пуста",
         "emptyDesc": "Сессии, перемещённые в корзину, появятся здесь.",
         "restoreAction": "Восстановить выбранные сессии"
+      },
+      "targetModal": {
+        "title": "Копировать в экземпляр",
+        "hint": "Копирует выбранные сеансы в целевой экземпляр. Сеансы с тем же ID, которые уже есть там, пропускаются. Запущенные целевые экземпляры могут потребовать перезапуска, прежде чем они появятся.",
+        "targetInstance": "Целевой экземпляр",
+        "pickTarget": "Выберите целевой экземпляр",
+        "selectedCount": "Выбрано сеансов: {{count}}",
+        "existingCount": "Уже в цели: {{count}}",
+        "confirm": "Копировать сеансы"
       }
     },
     "api": {
@@ -2163,7 +2195,8 @@
         "endpoint": "Конечная точка провайдера",
         "hint": "Совместимый Base URL был заполнен автоматически. При необходимости вы можете отредактировать его вручную.",
         "website": "Сайт",
-        "apiKeyPage": "Страница ключа API"
+        "apiKeyPage": "Страница ключа API",
+        "getApiKey": "Получить ключ"
       },
       "providers": {
         "openai_official": {
@@ -2225,6 +2258,9 @@
         },
         "siliconflow": {
           "name": "SiliconFlow"
+        },
+        "cockpit_api": {
+          "name": "Cockpit Api"
         }
       }
     },
@@ -2385,6 +2421,30 @@
       "addShort": "Добавить",
       "saved": "Заметка аккаунта сохранена",
       "saveFailed": "Не удалось сохранить заметку аккаунта: {{error}}"
+    },
+    "cockpitApi": {
+      "panelTitle": "Панель сервиса Cockpit Api",
+      "servicePanel": "Панель сервиса",
+      "balance": "Баланс",
+      "requests": "Запросы",
+      "total": "Всего",
+      "today": "Сегодня",
+      "periods": "Периоды",
+      "tokens": "Токены",
+      "quotaUsed": "Расход",
+      "modelStats": "Статистика моделей",
+      "noStats": "Статистики пока нет",
+      "refreshHint": "Нажмите обновить, чтобы синхронизировать статистику этого API-ключа.",
+      "dailyStats": "Статистика по дням"
+    },
+    "speed": {
+      "title": "Скорость",
+      "standard": "Стандарт",
+      "standardDesc": "Скорость по умолчанию, обычный расход",
+      "fast": "Быстрая",
+      "fastDesc": "Скорость 1,5x, расход выше",
+      "saveSuccess": "Скорость обновлена",
+      "saveFailed": "Не удалось сохранить скорость: {{error}}"
     }
   },
   "githubCopilot": {
@@ -2537,6 +2597,18 @@
           "contextWindowInvalid": "Контекстное окно должно быть целым числом больше 0.",
           "autoCompactInvalid": "Предел автокомпактности должен быть целым числом больше 0."
         }
+      },
+      "appSpeed": {
+        "title": "Скорость Codex",
+        "desc": "Сохранено как скорость запуска; записывается перед стартом Codex.",
+        "standard": "Стандарт",
+        "fast": "Быстро",
+        "launch": "Перезапуск",
+        "loadFailed": "Не удалось загрузить скорость Codex: {{error}}",
+        "saveSuccess": "Скорость запуска Codex сохранена.",
+        "saveFailed": "Не удалось сохранить скорость Codex: {{error}}",
+        "launchSuccess": "Codex перезапущен с сохраненной скоростью.",
+        "launchFailed": "Не удалось перезапустить Codex: {{error}}"
       }
     },
     "githubCopilot": {
@@ -3471,37 +3543,6 @@
         "descPlatform": "Мультиэкземпляр CodeBuddy CN поддерживается только в macOS, Windows и Linux."
       }
     },
-    "checkin": {
-      "title": "Ежедневный check-in",
-      "modalTitle": "Ежедневный check-in",
-      "status": "Статус check-in",
-      "checkedIn": "Отмечено",
-      "notCheckedIn": "Не отмечено",
-      "button": "Отметиться",
-      "button.loading": "Выполняется check-in...",
-      "done": "Готово",
-      "success": "Check-in выполнен! Серия {{days}} дней",
-      "failure": "Не удалось отметиться: {{message}}",
-      "failure.network": "Ошибка сети, попробуйте позже",
-      "lastCheckin": "Последний check-in: {{time}}",
-      "streak": "Серия {{days}} дней",
-      "reward": "Награда: {{reward}}",
-      "refreshStatus": "Обновить",
-      "checkAll": "Отметить все",
-      "noAccounts": "Нет аккаунтов",
-      "querying": "Загрузка...",
-      "streakDays": "{{days}} дней",
-      "streakRewardCountdown": "До бонусной награды осталось {{days}} дней",
-      "streakRewardToday": "Бонусная награда доступна сегодня!",
-      "recentDates": "Недавние: ",
-      "quotaCategory": {
-        "base": "Базовый пакет",
-        "activity": "Бонус активности",
-        "extra": "Дополнительные кредиты",
-        "other": "Прочее",
-        "empty": "Нет данных по квоте"
-      }
-    },
     "syncFailed": "Ошибка синхронизации: {{error}}",
     "syncSuccess": "{{count}} аккаунт(ов) синхронизировано с WorkBuddy",
     "syncToWorkbuddy": "Синхронизировать с WorkBuddy"
@@ -3608,6 +3649,30 @@
     },
     "quota": {
       "usedOfTotal": "{{used}} / {{total}}"
+    },
+    "checkin": {
+      "title": "Ежедневный check-in",
+      "modalTitle": "Ежедневный check-in",
+      "status": "Статус check-in",
+      "checkedIn": "Отмечено",
+      "notCheckedIn": "Не отмечено",
+      "button": "Отметиться",
+      "button.loading": "Выполняется check-in...",
+      "done": "Готово",
+      "success": "Check-in выполнен! Серия {{days}} дней",
+      "failure": "Не удалось отметиться: {{message}}",
+      "failure.network": "Ошибка сети, попробуйте позже",
+      "lastCheckin": "Последний check-in: {{time}}",
+      "streak": "Серия {{days}} дней",
+      "reward": "Награда: {{reward}}",
+      "refreshStatus": "Обновить",
+      "checkAll": "Отметить все",
+      "noAccounts": "Нет аккаунтов",
+      "querying": "Загрузка...",
+      "streakDays": "{{days}} дней",
+      "streakRewardCountdown": "До бонусной награды осталось {{days}} дней",
+      "streakRewardToday": "Бонусная награда доступна сегодня!",
+      "recentDates": "Недавние: "
     }
   },
   "zed": {

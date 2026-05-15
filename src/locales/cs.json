@@ -81,6 +81,7 @@
         "statusParsing": "Analyzuje se obsah importu Codex...",
         "statusImporting": "Importuje se účet {{current}} / {{total}}",
         "statusRefreshing": "Obnovuje se seznam účtů...",
+        "statusActivating": "Přepíná se na importovaný účet...",
         "statusSuccess": "Import dokončen",
         "statusPartial": "Částečně importováno",
         "statusFailed": "Import se nezdařil",
@@ -364,7 +365,8 @@
       "instance": "Instance",
       "email": "Účet",
       "quota": "Stav kvóty",
-      "actions": "Akce"
+      "actions": "Akce",
+      "speed": "Rychlost"
     },
     "empty": {
       "title": "Žádné instance",
@@ -442,7 +444,9 @@
           "contextWindowInvalid": "Kontextové okno musí být celé číslo větší než 0.",
           "autoCompactInvalid": "Limit automatického zhutnění musí být celé číslo větší než 0."
         }
-      }
+      },
+      "appSpeed": "Rychlost",
+      "appSpeedDesc": "Zapíše zvolenou rychlost před spuštěním oficiálního Codexu"
     },
     "quota": {
       "unbound": "Účet není propojen",
@@ -463,7 +467,8 @@
       "allAlreadyRunning": "Všechny instance již běží",
       "noneRunning": "Nebyly nalezeny žádné běžící instance",
       "syncThreadsNeedTwo": "Pro synchronizaci vláken jsou potřeba alespoň dvě instance",
-      "launchPrepared": "Příkaz ke spuštění je připraven"
+      "launchPrepared": "Příkaz ke spuštění je připraven",
+      "speedUpdated": "Rychlost aktualizována"
     },
     "runningDialog": {
       "title": "Instance již běží",
@@ -740,7 +745,14 @@
       "codexSpecifiedAppPath": "Cesta k zadané aplikaci",
       "codexSpecifiedAppPathDesc": "Cesta k aplikaci, která se restartuje spolu s přepnutím Codex.",
       "codexSpecifiedAppPathPlaceholder": "Např. /Applications/Host.app",
-      "codexSpecifiedAppPathClear": "Vymazat"
+      "codexSpecifiedAppPathClear": "Vymazat",
+      "codexAppSpeed": "Rychlost Codexu",
+      "codexAppSpeedDesc": "Uloží oficiální rychlost spuštění Codexu a zapíše ji před každým spuštěním z této aplikace.",
+      "codexAppSpeedStandard": "Standardní",
+      "codexAppSpeedFast": "Rychlá",
+      "codexAppSpeedLaunch": "Restartovat Codex",
+      "codexAppSpeedSaveFailed": "Nepodařilo se uložit rychlost Codexu: {{error}}",
+      "codexAppSpeedLaunchFailed": "Nepodařilo se restartovat Codex: {{error}}"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -1615,6 +1627,13 @@
   },
   "codex": {
     "title": "Správa účtů Codex",
+    "newApi": {
+      "quota": {
+        "available": "Kvóta",
+        "unlimited": "Neomezeně",
+        "usedHint": "Využito {{used}}"
+      }
+    },
     "subtitle": "Spravujte své účty OpenAI Codex",
     "instances": {
       "subtitle": "Nezávislá konfigurace pro každou instanci, paralelní provoz s více účty.",
@@ -1701,6 +1720,9 @@
       "title": "API služba",
       "accountCount": "{{count}} účtů",
       "baseUrl": "Adresa",
+      "addressKind": "Typ adresy",
+      "addressLocal": "Místní",
+      "addressLan": "Místní síť",
       "apiKey": "Klíč",
       "statusRunning": "Běží",
       "statusStopped": "Zastaveno",
@@ -2106,7 +2128,8 @@
         "collapse": "Sbalit",
         "repairVisibility": "Opravit viditelnost",
         "restoreSessions": "Obnovit relace",
-        "copySessionId": "Kopírovat ID relace"
+        "copySessionId": "Kopírovat ID relace",
+        "copyToInstance": "Kopírovat do instance"
       },
       "confirm": {
         "title": "Přesunout do koše",
@@ -2139,6 +2162,15 @@
         "emptyTitle": "Koš je prázdný",
         "emptyDesc": "Relace přesunuté do koše se zobrazí zde.",
         "restoreAction": "Obnovit vybrané relace"
+      },
+      "targetModal": {
+        "title": "Kopírovat do instance",
+        "hint": "Zkopíruje vybrané relace do cílové instance. Relace se stejným ID, které už tam jsou, se přeskočí. Běžící cílové instance mohou vyžadovat restart, než se zobrazí.",
+        "targetInstance": "Cílová instance",
+        "pickTarget": "Vyberte cílovou instanci",
+        "selectedCount": "Vybráno relací: {{count}}",
+        "existingCount": "V cíli už existuje: {{count}}",
+        "confirm": "Kopírovat relace"
       }
     },
     "api": {
@@ -2163,7 +2195,8 @@
         "endpoint": "Koncový bod poskytovatele",
         "hint": "Kompatibilní Base URL byla vyplněna automaticky. Stále ji můžete upravit ručně.",
         "website": "Web",
-        "apiKeyPage": "Stránka API klíče"
+        "apiKeyPage": "Stránka API klíče",
+        "getApiKey": "Získat klíč"
       },
       "providers": {
         "openai_official": {
@@ -2225,6 +2258,9 @@
         },
         "siliconflow": {
           "name": "SiliconFlow"
+        },
+        "cockpit_api": {
+          "name": "Cockpit Api"
         }
       }
     },
@@ -2385,6 +2421,30 @@
       "addShort": "Přidat",
       "saved": "Poznámka účtu uložena",
       "saveFailed": "Uložení poznámky účtu selhalo: {{error}}"
+    },
+    "cockpitApi": {
+      "panelTitle": "Panel služby Cockpit Api",
+      "servicePanel": "Panel služby",
+      "balance": "Zůstatek",
+      "requests": "Požadavky",
+      "total": "Celkem",
+      "today": "Dnes",
+      "periods": "Období",
+      "tokens": "Tokeny",
+      "quotaUsed": "Spotřeba",
+      "modelStats": "Statistiky modelů",
+      "noStats": "Zatím žádné statistiky",
+      "refreshHint": "Kliknutím na obnovit synchronizujete statistiky tohoto API klíče.",
+      "dailyStats": "Denní statistiky"
+    },
+    "speed": {
+      "title": "Rychlost",
+      "standard": "Základní",
+      "standardDesc": "Výchozí rychlost, běžné využití",
+      "fast": "Rychlá",
+      "fastDesc": "Rychlost 1,5x, vyšší využití",
+      "saveSuccess": "Rychlost aktualizována",
+      "saveFailed": "Rychlost se nepodařilo uložit: {{error}}"
     }
   },
   "githubCopilot": {
@@ -2537,6 +2597,18 @@
           "contextWindowInvalid": "Kontextové okno musí být celé číslo větší než 0.",
           "autoCompactInvalid": "Limit automatického zhutnění musí být celé číslo větší než 0."
         }
+      },
+      "appSpeed": {
+        "title": "Rychlost Codexu",
+        "desc": "Uloženo jako rychlost spuštění; zapisuje se před startem Codexu.",
+        "standard": "Standardní",
+        "fast": "Rychlá",
+        "launch": "Restartovat",
+        "loadFailed": "Nepodařilo se načíst rychlost Codexu: {{error}}",
+        "saveSuccess": "Rychlost spuštění Codexu byla uložena.",
+        "saveFailed": "Nepodařilo se uložit rychlost Codexu: {{error}}",
+        "launchSuccess": "Codex byl restartován s uloženou rychlostí.",
+        "launchFailed": "Nepodařilo se restartovat Codex: {{error}}"
       }
     },
     "githubCopilot": {
@@ -3471,37 +3543,6 @@
         "descPlatform": "Více instancí CodeBuddy CN je podporováno pouze na macOS, Windows a Linuxu."
       }
     },
-    "checkin": {
-      "title": "Denní check-in",
-      "modalTitle": "Denní check-in",
-      "status": "Stav check-inu",
-      "checkedIn": "Zaregistrováno",
-      "notCheckedIn": "Nezaregistrováno",
-      "button": "Přihlásit",
-      "button.loading": "Probíhá check-in...",
-      "done": "Hotovo",
-      "success": "Check-in úspěšný! Série {{days}} dní",
-      "failure": "Přihlášení selhalo: {{message}}",
-      "failure.network": "Chyba sítě, zkuste to prosím později",
-      "lastCheckin": "Poslední check-in: {{time}}",
-      "streak": "{{days}}denní série",
-      "reward": "Odměna: {{reward}}",
-      "refreshStatus": "Obnovit",
-      "checkAll": "Check-in všeho",
-      "noAccounts": "Žádné účty",
-      "querying": "Načítání...",
-      "streakDays": "{{days}} dní",
-      "streakRewardCountdown": "Do bonusové odměny zbývá {{days}} dní",
-      "streakRewardToday": "Bonusová odměna je dnes dostupná!",
-      "recentDates": "Nedávno: ",
-      "quotaCategory": {
-        "base": "Základní balíček",
-        "activity": "Aktivní bonus",
-        "extra": "Extra kredity",
-        "other": "Ostatní",
-        "empty": "Žádná data kvóty"
-      }
-    },
     "syncFailed": "Synchronizace selhala: {{error}}",
     "syncSuccess": "{{count}} účtů bylo synchronizováno s WorkBuddy",
     "syncToWorkbuddy": "Synchronizovat s WorkBuddy"
@@ -3608,6 +3649,30 @@
     },
     "quota": {
       "usedOfTotal": "{{used}} / {{total}}"
+    },
+    "checkin": {
+      "title": "Denní check-in",
+      "modalTitle": "Denní check-in",
+      "status": "Stav check-inu",
+      "checkedIn": "Zaregistrováno",
+      "notCheckedIn": "Nezaregistrováno",
+      "button": "Přihlásit",
+      "button.loading": "Probíhá check-in...",
+      "done": "Hotovo",
+      "success": "Check-in úspěšný! Série {{days}} dní",
+      "failure": "Přihlášení selhalo: {{message}}",
+      "failure.network": "Chyba sítě, zkuste to prosím později",
+      "lastCheckin": "Poslední check-in: {{time}}",
+      "streak": "{{days}}denní série",
+      "reward": "Odměna: {{reward}}",
+      "refreshStatus": "Obnovit",
+      "checkAll": "Check-in všeho",
+      "noAccounts": "Žádné účty",
+      "querying": "Načítání...",
+      "streakDays": "{{days}} dní",
+      "streakRewardCountdown": "Do bonusové odměny zbývá {{days}} dní",
+      "streakRewardToday": "Bonusová odměna je dnes dostupná!",
+      "recentDates": "Nedávno: "
     }
   },
   "zed": {

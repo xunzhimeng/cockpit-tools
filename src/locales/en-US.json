@@ -88,6 +88,7 @@
         "statusParsing": "Parsing Codex import content...",
         "statusImporting": "Importing account {{current}} / {{total}}",
         "statusRefreshing": "Refreshing account list...",
+        "statusActivating": "Activating imported account...",
         "statusSuccess": "Import complete",
         "statusPartial": "Partially imported",
         "statusFailed": "Import failed",
@@ -422,7 +423,8 @@
       "instance": "Instance",
       "email": "Account",
       "quota": "Quota",
-      "actions": "Actions"
+      "actions": "Actions",
+      "speed": "Speed"
     },
     "empty": {
       "title": "No instances yet",
@@ -500,7 +502,9 @@
       },
       "nameRequired": "Please enter an instance name",
       "pathRequired": "Please select an instance directory",
-      "bindRequired": "Please select an account to bind"
+      "bindRequired": "Please select an account to bind",
+      "appSpeed": "Speed",
+      "appSpeedDesc": "Writes the selected speed before starting official Codex"
     },
     "quota": {
       "unbound": "No bound account",
@@ -521,7 +525,8 @@
       "closedAll": "Closed all instances",
       "allAlreadyRunning": "All instances are already running",
       "noneRunning": "No running instances found",
-      "syncThreadsNeedTwo": "At least two instances are required to sync threads"
+      "syncThreadsNeedTwo": "At least two instances are required to sync threads",
+      "speedUpdated": "Speed updated"
     },
     "runningDialog": {
       "title": "Instance already running",
@@ -884,7 +889,14 @@
       "qoderAutoRefreshDesc": "Background auto-refresh frequency",
       "qoderPathSelect": "Select",
       "workbuddyAutoRefresh": "WorkBuddy Auto Refresh",
-      "workbuddyAutoRefreshDesc": "Background auto-refresh frequency"
+      "workbuddyAutoRefreshDesc": "Background auto-refresh frequency",
+      "codexAppSpeed": "Codex Speed",
+      "codexAppSpeedDesc": "Saves the official Codex launch speed; this app writes it before each Codex launch.",
+      "codexAppSpeedStandard": "Standard",
+      "codexAppSpeedFast": "Fast",
+      "codexAppSpeedLaunch": "Restart Codex",
+      "codexAppSpeedSaveFailed": "Failed to save Codex speed: {{error}}",
+      "codexAppSpeedLaunchFailed": "Failed to restart Codex: {{error}}"
     },
     "network": {
       "apiTitle": "Antigravity Cockpit API",
@@ -1661,13 +1673,20 @@
   },
   "codex": {
     "title": "Codex Account",
+    "newApi": {
+      "quota": {
+        "available": "Quota",
+        "unlimited": "Unlimited",
+        "usedHint": "Used {{used}}"
+      }
+    },
     "subtitle": "Real-time monitoring of all Codex account model quotas.",
     "instances": {
       "subtitle": "Independent configuration per instance, parallel operation with multiple accounts.",
       "comingSoon": "Multi-Instance Coming Soon",
       "comingSoonDesc": "Run multiple Codex.app instances with different accounts simultaneously, stay tuned.",
       "unsupported": {
-        "desc": "Codex multi-instance is currently available only on macOS."
+        "desc": "Codex multi-instance is available only on macOS and Windows."
       },
       "quota": {
         "hourly": "5h",
@@ -1775,6 +1794,9 @@
       "manageDesc": "Manage API service stats, members, port, key, and connectivity checks in one place.",
       "accountCount": "{{count}} accounts",
       "baseUrl": "URL",
+      "addressKind": "Address type",
+      "addressLocal": "Local",
+      "addressLan": "LAN",
       "apiPortUrl": "API Port URL",
       "apiKey": "API Key",
       "modelId": "Model ID",
@@ -1926,9 +1948,13 @@
         "endpoint": "Provider Endpoint",
         "hint": "A compatible Base URL has been filled in automatically. You can still edit it manually.",
         "website": "Website",
-        "apiKeyPage": "API Key Page"
+        "apiKeyPage": "API Key Page",
+        "getApiKey": "Get API Key"
       },
       "providers": {
+        "cockpit_api": {
+          "name": "Cockpit Api"
+        },
         "openai_official": {
           "name": "OpenAI Official"
         },
@@ -1995,6 +2021,21 @@
         "baseUrlInvalid": "Invalid Base URL. Please enter a full http:// or https:// URL.",
         "apiKeyEqualsBaseUrl": "API key cannot be the same as Base URL."
       }
+    },
+    "cockpitApi": {
+      "panelTitle": "Cockpit Api Service Panel",
+      "servicePanel": "Service Panel",
+      "balance": "Balance",
+      "requests": "Requests",
+      "total": "Total",
+      "today": "Today",
+      "periods": "Periods",
+      "tokens": "Tokens",
+      "quotaUsed": "Used",
+      "modelStats": "Model Stats",
+      "noStats": "No stats yet",
+      "refreshHint": "Click refresh to sync stats for this API key.",
+      "dailyStats": "Daily Stats"
     },
     "modelProviders": {
       "tab": "Model Providers",
@@ -2390,6 +2431,7 @@
       "actions": {
         "moveToTrash": "Move to Trash",
         "syncSessions": "Sync Sessions",
+        "copyToInstance": "Copy to Instance",
         "repairVisibility": "Repair Visibility",
         "restoreSessions": "Restore Sessions",
         "copySessionId": "Copy Session ID",
@@ -2427,10 +2469,28 @@
         "emptyTitle": "Trash is empty",
         "emptyDesc": "Sessions moved to Trash will appear here.",
         "restoreAction": "Restore Selected Sessions"
+      },
+      "targetModal": {
+        "title": "Copy to Instance",
+        "hint": "Copies the selected sessions into the target instance. Sessions with the same ID already present there are skipped. Running target instances may need a restart before they appear.",
+        "targetInstance": "Target instance",
+        "pickTarget": "Select a target instance",
+        "selectedCount": "{{count}} session(s) selected",
+        "existingCount": "{{count}} already in target",
+        "confirm": "Copy Sessions"
       }
     },
     "groups": {
       "addToGroup": "Add to Group"
+    },
+    "speed": {
+      "title": "Speed",
+      "standard": "Standard",
+      "standardDesc": "Default speed, regular usage",
+      "fast": "Fast",
+      "fastDesc": "1.5x speed, higher usage",
+      "saveSuccess": "Speed updated",
+      "saveFailed": "Failed to save speed: {{error}}"
     }
   },
   "codebuddy": {
@@ -2683,6 +2743,18 @@
           "contextWindowInvalid": "Context window must be an integer greater than 0.",
           "autoCompactInvalid": "Auto-compact limit must be an integer greater than 0."
         }
+      },
+      "appSpeed": {
+        "title": "Codex Speed",
+        "desc": "Saved as launch speed; written before this app starts Codex.",
+        "standard": "Standard",
+        "fast": "Fast",
+        "launch": "Restart",
+        "loadFailed": "Failed to load Codex speed: {{error}}",
+        "saveSuccess": "Codex launch speed saved.",
+        "saveFailed": "Failed to save Codex speed: {{error}}",
+        "launchSuccess": "Codex restarted with the saved speed.",
+        "launchFailed": "Failed to restart Codex: {{error}}"
       }
     },
     "githubCopilot": {
@@ -3589,6 +3661,14 @@
         "descPlatform": "CodeBuddy CN multi-instance is supported on macOS, Windows, and Linux only."
       }
     },
+    "syncFailed": "Sync failed: {{error}}",
+    "syncSuccess": "{{count}} account(s) synced to WorkBuddy",
+    "syncToWorkbuddy": "Sync to WorkBuddy"
+  },
+  "workbuddy": {
+    "title": "WorkBuddy Account",
+    "noAccounts": "No WorkBuddy accounts",
+    "addAccount": "Add WorkBuddy Account",
     "checkin": {
       "title": "Daily Check-in",
       "modalTitle": "Daily Check-in",
@@ -3611,23 +3691,8 @@
       "streakDays": "{{days}} days",
       "streakRewardCountdown": "{{days}} more days for bonus reward",
       "streakRewardToday": "Bonus reward available today!",
-      "recentDates": "Recent: ",
-      "quotaCategory": {
-        "base": "Base Package",
-        "activity": "Activity Bonus",
-        "extra": "Extra Credits",
-        "other": "Other",
-        "empty": "No quota data"
-      }
+      "recentDates": "Recent: "
     },
-    "syncFailed": "Sync failed: {{error}}",
-    "syncSuccess": "{{count}} account(s) synced to WorkBuddy",
-    "syncToWorkbuddy": "Sync to WorkBuddy"
-  },
-  "workbuddy": {
-    "title": "WorkBuddy Account",
-    "noAccounts": "No WorkBuddy accounts",
-    "addAccount": "Add WorkBuddy Account",
     "flowNotice": {
       "title": "WorkBuddy Account Info (click to expand/collapse)",
       "desc": "Account switching writes the local sign-in file using the latest official WorkBuddy client layout; local import reads the same file. Data is processed locally only.",

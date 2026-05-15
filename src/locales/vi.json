@@ -81,6 +81,7 @@
         "statusParsing": "Đang phân tích nội dung nhập Codex...",
         "statusImporting": "Đang nhập tài khoản {{current}} / {{total}}",
         "statusRefreshing": "Đang làm mới danh sách tài khoản...",
+        "statusActivating": "Đang chuyển sang tài khoản đã nhập...",
         "statusSuccess": "Nhập hoàn tất",
         "statusPartial": "Nhập một phần hoàn tất",
         "statusFailed": "Nhập thất bại",
@@ -364,7 +365,8 @@
       "instance": "Phiên bản",
       "email": "Tài khoản",
       "quota": "Trạng thái hạn ngạch",
-      "actions": "Hành động"
+      "actions": "Hành động",
+      "speed": "Tốc độ"
     },
     "empty": {
       "title": "Không có phiên bản nào",
@@ -442,7 +444,9 @@
           "contextWindowInvalid": "Cửa sổ ngữ cảnh phải là số nguyên lớn hơn 0.",
           "autoCompactInvalid": "Giới hạn tự động thu gọn phải là số nguyên lớn hơn 0."
         }
-      }
+      },
+      "appSpeed": "Tốc độ",
+      "appSpeedDesc": "Ghi tốc độ đã chọn trước khi mở Codex chính thức"
     },
     "quota": {
       "unbound": "Tài khoản chưa liên kết",
@@ -463,7 +467,8 @@
       "allAlreadyRunning": "Tất cả các phiên bản đã đang chạy",
       "noneRunning": "Không tìm thấy phiên bản nào đang chạy",
       "syncThreadsNeedTwo": "Cần ít nhất hai phiên bản để đồng bộ luồng",
-      "launchPrepared": "Lệnh khởi chạy đã sẵn sàng"
+      "launchPrepared": "Lệnh khởi chạy đã sẵn sàng",
+      "speedUpdated": "Đã cập nhật tốc độ"
     },
     "runningDialog": {
       "title": "Phiên bản đã đang chạy",
@@ -740,7 +745,14 @@
       "codexSpecifiedAppPath": "Đường dẫn ứng dụng chỉ định",
       "codexSpecifiedAppPathDesc": "Đường dẫn ứng dụng được khởi động lại cùng lúc chuyển Codex.",
       "codexSpecifiedAppPathPlaceholder": "Ví dụ /Applications/Host.app",
-      "codexSpecifiedAppPathClear": "Xóa"
+      "codexSpecifiedAppPathClear": "Xóa",
+      "codexAppSpeed": "Tốc độ Codex",
+      "codexAppSpeedDesc": "Lưu tốc độ khởi động chính thức của Codex và ghi trước mỗi lần mở từ ứng dụng này.",
+      "codexAppSpeedStandard": "Chuẩn",
+      "codexAppSpeedFast": "Nhanh",
+      "codexAppSpeedLaunch": "Khởi động lại Codex",
+      "codexAppSpeedSaveFailed": "Không thể lưu tốc độ Codex: {{error}}",
+      "codexAppSpeedLaunchFailed": "Không thể khởi động lại Codex: {{error}}"
     },
     "network": {
       "apiTitle": "API Antigravity Cockpit",
@@ -1615,6 +1627,13 @@
   },
   "codex": {
     "title": "Quản lý tài khoản Codex",
+    "newApi": {
+      "quota": {
+        "available": "Hạn mức",
+        "unlimited": "Không giới hạn",
+        "usedHint": "Đã dùng {{used}}"
+      }
+    },
     "subtitle": "Quản lý các tài khoản OpenAI Codex",
     "instances": {
       "subtitle": "Cấu hình độc lập cho mỗi phiên bản, vận hành song song với nhiều tài khoản.",
@@ -1701,6 +1720,9 @@
       "title": "Dịch vụ API",
       "accountCount": "{{count}} tài khoản",
       "baseUrl": "Địa chỉ",
+      "addressKind": "Loại địa chỉ",
+      "addressLocal": "Cục bộ",
+      "addressLan": "Mạng cục bộ",
       "apiKey": "Khóa",
       "statusRunning": "Đang chạy",
       "statusStopped": "Đã dừng",
@@ -2106,7 +2128,8 @@
         "collapse": "Thu gọn",
         "repairVisibility": "Sửa hiển thị",
         "restoreSessions": "Khôi phục phiên",
-        "copySessionId": "Sao chép ID phiên"
+        "copySessionId": "Sao chép ID phiên",
+        "copyToInstance": "Sao chép sang phiên bản"
       },
       "confirm": {
         "title": "Chuyển vào thùng rác",
@@ -2139,6 +2162,15 @@
         "emptyTitle": "Thùng rác trống",
         "emptyDesc": "Các phiên đã chuyển vào thùng rác sẽ xuất hiện ở đây.",
         "restoreAction": "Khôi phục các phiên đã chọn"
+      },
+      "targetModal": {
+        "title": "Sao chép sang phiên bản",
+        "hint": "Sao chép các phiên đã chọn sang phiên bản đích. Phiên có cùng ID đã tồn tại ở đó sẽ được bỏ qua. Phiên bản đích đang chạy có thể cần khởi động lại trước khi hiển thị.",
+        "targetInstance": "Phiên bản đích",
+        "pickTarget": "Chọn phiên bản đích",
+        "selectedCount": "Đã chọn {{count}} phiên",
+        "existingCount": "{{count}} đã có ở đích",
+        "confirm": "Sao chép phiên"
       }
     },
     "api": {
@@ -2163,7 +2195,8 @@
         "endpoint": "Điểm cuối nhà cung cấp",
         "hint": "Base URL tương thích đã được điền tự động. Bạn vẫn có thể chỉnh sửa thủ công.",
         "website": "Trang web",
-        "apiKeyPage": "Trang API Key"
+        "apiKeyPage": "Trang API Key",
+        "getApiKey": "Lấy khóa"
       },
       "providers": {
         "openai_official": {
@@ -2225,6 +2258,9 @@
         },
         "siliconflow": {
           "name": "SiliconFlow"
+        },
+        "cockpit_api": {
+          "name": "Cockpit Api"
         }
       }
     },
@@ -2385,6 +2421,30 @@
       "addShort": "Thêm",
       "saved": "Đã lưu ghi chú tài khoản",
       "saveFailed": "Không thể lưu ghi chú tài khoản: {{error}}"
+    },
+    "cockpitApi": {
+      "panelTitle": "Bảng dịch vụ Cockpit Api",
+      "servicePanel": "Bảng dịch vụ",
+      "balance": "Số dư",
+      "requests": "Yêu cầu",
+      "total": "Tổng",
+      "today": "Hôm nay",
+      "periods": "Kỳ",
+      "tokens": "Token",
+      "quotaUsed": "Đã dùng",
+      "modelStats": "Thống kê mô hình",
+      "noStats": "Chưa có thống kê",
+      "refreshHint": "Bấm làm mới để đồng bộ thống kê của API key này.",
+      "dailyStats": "Thống kê hằng ngày"
+    },
+    "speed": {
+      "title": "Tốc độ",
+      "standard": "Chuẩn",
+      "standardDesc": "Tốc độ mặc định, mức dùng thường",
+      "fast": "Nhanh",
+      "fastDesc": "Tốc độ 1,5x, dùng nhiều hơn",
+      "saveSuccess": "Đã cập nhật tốc độ",
+      "saveFailed": "Không thể lưu tốc độ: {{error}}"
     }
   },
   "githubCopilot": {
@@ -2537,6 +2597,18 @@
           "contextWindowInvalid": "Cửa sổ ngữ cảnh phải là số nguyên lớn hơn 0.",
           "autoCompactInvalid": "Giới hạn tự động thu gọn phải là số nguyên lớn hơn 0."
         }
+      },
+      "appSpeed": {
+        "title": "Tốc độ Codex",
+        "desc": "Lưu làm tốc độ khởi động; ghi trước khi mở Codex.",
+        "standard": "Chuẩn",
+        "fast": "Nhanh",
+        "launch": "Khởi động lại",
+        "loadFailed": "Không thể tải tốc độ Codex: {{error}}",
+        "saveSuccess": "Đã lưu tốc độ khởi động Codex.",
+        "saveFailed": "Không thể lưu tốc độ Codex: {{error}}",
+        "launchSuccess": "Codex đã khởi động lại với tốc độ đã lưu.",
+        "launchFailed": "Không thể khởi động lại Codex: {{error}}"
       }
     },
     "githubCopilot": {
@@ -3471,37 +3543,6 @@
         "descPlatform": "Phiên bản đa phiên bản CodeBuddy CN chỉ được hỗ trợ trên macOS, Windows và Linux."
       }
     },
-    "checkin": {
-      "title": "Điểm danh hằng ngày",
-      "modalTitle": "Điểm danh hằng ngày",
-      "status": "Trạng thái điểm danh",
-      "checkedIn": "Đã điểm danh",
-      "notCheckedIn": "Chưa điểm danh",
-      "button": "Điểm danh",
-      "button.loading": "Đang điểm danh...",
-      "done": "Hoàn tất",
-      "success": "Điểm danh thành công! Chuỗi {{days}} ngày",
-      "failure": "Điểm danh thất bại: {{message}}",
-      "failure.network": "Lỗi mạng, vui lòng thử lại sau",
-      "lastCheckin": "Lần điểm danh gần nhất: {{time}}",
-      "streak": "Chuỗi {{days}} ngày",
-      "reward": "Phần thưởng: {{reward}}",
-      "refreshStatus": "Làm mới",
-      "checkAll": "Điểm danh tất cả",
-      "noAccounts": "Không có tài khoản",
-      "querying": "Đang tải...",
-      "streakDays": "{{days}} ngày",
-      "streakRewardCountdown": "Còn {{days}} ngày nữa để nhận thưởng bonus",
-      "streakRewardToday": "Hôm nay có thể nhận thưởng bonus!",
-      "recentDates": "Gần đây: ",
-      "quotaCategory": {
-        "base": "Gói cơ bản",
-        "activity": "Thưởng hoạt động",
-        "extra": "Tín dụng bổ sung",
-        "other": "Khác",
-        "empty": "Không có dữ liệu hạn mức"
-      }
-    },
     "syncFailed": "Đồng bộ thất bại: {{error}}",
     "syncSuccess": "Đã đồng bộ {{count}} tài khoản với WorkBuddy",
     "syncToWorkbuddy": "Đồng bộ tới WorkBuddy"
@@ -3608,6 +3649,30 @@
     },
     "quota": {
       "usedOfTotal": "{{used}} / {{total}}"
+    },
+    "checkin": {
+      "title": "Điểm danh hằng ngày",
+      "modalTitle": "Điểm danh hằng ngày",
+      "status": "Trạng thái điểm danh",
+      "checkedIn": "Đã điểm danh",
+      "notCheckedIn": "Chưa điểm danh",
+      "button": "Điểm danh",
+      "button.loading": "Đang điểm danh...",
+      "done": "Hoàn tất",
+      "success": "Điểm danh thành công! Chuỗi {{days}} ngày",
+      "failure": "Điểm danh thất bại: {{message}}",
+      "failure.network": "Lỗi mạng, vui lòng thử lại sau",
+      "lastCheckin": "Lần điểm danh gần nhất: {{time}}",
+      "streak": "Chuỗi {{days}} ngày",
+      "reward": "Phần thưởng: {{reward}}",
+      "refreshStatus": "Làm mới",
+      "checkAll": "Điểm danh tất cả",
+      "noAccounts": "Không có tài khoản",
+      "querying": "Đang tải...",
+      "streakDays": "{{days}} ngày",
+      "streakRewardCountdown": "Còn {{days}} ngày nữa để nhận thưởng bonus",
+      "streakRewardToday": "Hôm nay có thể nhận thưởng bonus!",
+      "recentDates": "Gần đây: "
     }
   },
   "zed": {

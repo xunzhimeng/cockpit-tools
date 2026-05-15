@@ -7,6 +7,58 @@ All notable changes to Cockpit Tools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [0.23.4] - 2026-05-14
+
+### Added
+- **Codex Local API Service now exposes a LAN URL when available**: the account overview and API Service dialog can switch between the local URL and detected private LAN address, and copy the selected address for use from other devices on the same network.
+
+### Changed
+- **Codex Local API Service upstream requests now follow the app's global proxy settings**: the gateway rebuilds its upstream HTTP client when proxy settings change, honors `no_proxy`, and supports SOCKS proxy URLs.
+
+### Fixed
+- **Codex API Key provider state now matches non-OAuth local gateway behavior**: API Key providers are written without OpenAI-auth or websocket requirements, and switching back to built-in OpenAI removes managed API-key provider blocks while preserving unrelated manual providers.
+- **Codex session visibility repair now restores more hidden local threads**: SQLite repair now marks threads with a first user message as user-visible, fills missing `thread_source`, and keeps provider-only database schemas working.
+
+---
+## [0.23.3] - 2026-05-13
+
+### Added
+- **Codex official app speed can now follow accounts, the Local API Service, and managed instances**: account cards/tables, the API Service card, and Codex instance rows/forms can choose Standard or Fast, persist the selected launch speed, and write the official global state before account switches, API Service activation, and managed app launches.
+
+### Changed
+- **Codex default app launches now prepare the real launch state before restart**: managed launches can auto-detect the Codex app path when it is missing, close the default Codex process by home/process scan instead of relying only on the saved PID, and write the selected speed before starting Codex.
+- **macOS Dock and menu bar reopening now use the shared main-window recovery path**: reopening restores, unhides, activates, and focuses the main window through the same backend routine.
+
+### Fixed
+- **Windows source builds no longer fail when the previous debug executable is still running**: Tauri dev/build now clears the stale `target\debug\cockpit_tools.exe` process before Cargo replaces the debug binary.
+
+---
+## [0.23.2] - 2026-05-12
+
+### Added
+- **Codex instances now support Windows launch and process detection**: Windows can resolve Codex paths, identify managed instance processes by app user-data directory, and open Codex CLI sessions through PowerShell, Windows Terminal, or cmd.
+- **Codex session management can copy selected sessions into a target instance**: selected sessions can be restored into one Codex instance, existing session IDs are skipped, target files are backed up, and running targets are called out when a restart may be needed.
+
+### Fixed
+- **Codex API Key sessions no longer disappear when switching between different API providers**: API Key accounts now write a single runtime provider into `config.toml` with the selected base URL and Responses wire API, and built-in OAuth switching removes that runtime provider state.
+- **WebKit LocalStorage WAL files no longer grow without a startup checkpoint on macOS**: the app now checkpoints WebKit LocalStorage SQLite databases in the background on startup to prevent large WAL files from accumulating over time.
+
+---
+## [0.23.1] - 2026-05-12
+
+### Changed
+- **Republished from the mainline state to replace the withdrawn v0.23.0 build**: this release keeps the stable v0.22.22 code path and excludes the experimental PR integration that was accidentally published as v0.23.0.
+
+---
+## [0.22.22] - 2026-05-12
+
+### Added
+- **Codex model-provider management now supports new provider presets**: the account and model-provider flows can recognize and manage the newly added provider options for API-key based Codex usage.
+
+### Removed
+- **CodeBuddy CN daily check-in has been removed**: the account-page check-in entry, check-in dialog, instance-page check-in badge, frontend service calls, and desktop commands have been removed from the CodeBuddy CN path.
+
+---
 ## [0.22.21] - 2026-05-10
 
 ### Added

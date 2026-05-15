@@ -88,6 +88,7 @@
         "statusParsing": "正在解析 Codex 导入内容...",
         "statusImporting": "正在导入第 {{current}} / {{total}} 个账号",
         "statusRefreshing": "正在刷新账号列表...",
+        "statusActivating": "正在切换到导入账号...",
         "statusSuccess": "导入完成",
         "statusPartial": "部分导入完成",
         "statusFailed": "导入失败",
@@ -422,7 +423,8 @@
       "instance": "实例",
       "email": "账号",
       "quota": "配额状态",
-      "actions": "操作"
+      "actions": "操作",
+      "speed": "速度"
     },
     "empty": {
       "title": "还没有实例",
@@ -500,7 +502,9 @@
       },
       "nameRequired": "请输入实例名称",
       "pathRequired": "请选择实例目录",
-      "bindRequired": "请选择要绑定的账号"
+      "bindRequired": "请选择要绑定的账号",
+      "appSpeed": "速度",
+      "appSpeedDesc": "启动官方 Codex 前写入对应速度"
     },
     "quota": {
       "unbound": "未绑定账号",
@@ -521,7 +525,8 @@
       "closedAll": "已关闭所有实例",
       "allAlreadyRunning": "所有实例已在运行",
       "noneRunning": "当前没有运行中的实例",
-      "syncThreadsNeedTwo": "至少需要两个实例才能同步线程"
+      "syncThreadsNeedTwo": "至少需要两个实例才能同步线程",
+      "speedUpdated": "速度已更新"
     },
     "runningDialog": {
       "title": "实例已在运行",
@@ -884,7 +889,14 @@
       "qoderAutoRefreshDesc": "后台自动更新频率",
       "qoderPathSelect": "选择",
       "workbuddyAutoRefresh": "WorkBuddy 自动刷新配额",
-      "workbuddyAutoRefreshDesc": "后台自动更新频率"
+      "workbuddyAutoRefreshDesc": "后台自动更新频率",
+      "codexAppSpeed": "Codex 速度",
+      "codexAppSpeedDesc": "保存为官方 Codex 启动速度；每次从本应用启动 Codex 前都会写入。",
+      "codexAppSpeedStandard": "标准",
+      "codexAppSpeedFast": "快速",
+      "codexAppSpeedLaunch": "重启 Codex",
+      "codexAppSpeedSaveFailed": "保存 Codex 速度失败：{{error}}",
+      "codexAppSpeedLaunchFailed": "重启 Codex 失败：{{error}}"
     },
     "network": {
       "apiTitle": "反重力驾驶舱 API",
@@ -1661,13 +1673,20 @@
   },
   "codex": {
     "title": "Codex 账号管理",
+    "newApi": {
+      "quota": {
+        "available": "额度",
+        "unlimited": "不限量",
+        "usedHint": "已用 {{used}}"
+      }
+    },
     "subtitle": "实时监控所有Codex账号的模型配额状态。",
     "instances": {
       "subtitle": "多实例独立配置，多账号并行运行。",
       "comingSoon": "多开实例功能即将上线",
       "comingSoonDesc": "支持以不同账号同时运行多个 Codex.app 实例，敬请期待。",
       "unsupported": {
-        "desc": "Codex 多开实例仅支持 macOS，请在 macOS 上使用。"
+        "desc": "Codex 多开实例仅支持 macOS 和 Windows。"
       },
       "quota": {
         "hourly": "5小时",
@@ -1775,6 +1794,9 @@
       "manageDesc": "在这里统一管理 API 服务的统计、成员、端口、密钥和连通性测试。",
       "accountCount": "{{count}} 个账号",
       "baseUrl": "地址",
+      "addressKind": "地址类型",
+      "addressLocal": "本机",
+      "addressLan": "局域网",
       "apiPortUrl": "API端口URL",
       "apiKey": "密钥",
       "modelId": "模型 ID",
@@ -1930,9 +1952,13 @@
         "endpoint": "供应商端点",
         "hint": "已自动填写兼容 Base URL，可继续手动调整。",
         "website": "官网",
-        "apiKeyPage": "API Key 页面"
+        "apiKeyPage": "API Key 页面",
+        "getApiKey": "获取秘钥"
       },
       "providers": {
+        "cockpit_api": {
+          "name": "Cockpit Api"
+        },
         "openai_official": {
           "name": "OpenAI Official"
         },
@@ -1999,6 +2025,21 @@
         "baseUrlInvalid": "Base URL 格式无效，请输入完整的 http:// 或 https:// 地址",
         "apiKeyEqualsBaseUrl": "API Key 不能与 Base URL 相同"
       }
+    },
+    "cockpitApi": {
+      "panelTitle": "Cockpit Api 服务面板",
+      "servicePanel": "服务面板",
+      "balance": "额度",
+      "requests": "请求",
+      "total": "总计",
+      "today": "今日",
+      "periods": "周期",
+      "tokens": "token",
+      "quotaUsed": "消耗",
+      "modelStats": "模型统计",
+      "noStats": "暂无统计",
+      "refreshHint": "点击刷新后会同步当前 API key 的统计。",
+      "dailyStats": "每日统计"
     },
     "modelProviders": {
       "tab": "模型供应商",
@@ -2394,6 +2435,7 @@
       "actions": {
         "moveToTrash": "移到废纸篓",
         "syncSessions": "同步会话",
+        "copyToInstance": "复制到实例",
         "repairVisibility": "修复可见性",
         "restoreSessions": "恢复会话",
         "copySessionId": "复制会话 ID",
@@ -2431,10 +2473,28 @@
         "emptyTitle": "废纸篓里还没有会话",
         "emptyDesc": "已移到废纸篓的会话会显示在这里。",
         "restoreAction": "恢复选中会话"
+      },
+      "targetModal": {
+        "title": "复制到实例",
+        "hint": "会把所选会话补到目标实例，已有同 ID 会话会自动跳过；目标实例运行中时可能需要重启后显示。",
+        "targetInstance": "目标实例",
+        "pickTarget": "请选择目标实例",
+        "selectedCount": "已选择 {{count}} 条会话",
+        "existingCount": "目标已存在 {{count}} 条",
+        "confirm": "复制会话"
       }
     },
     "groups": {
       "addToGroup": "添加至分组"
+    },
+    "speed": {
+      "title": "速度",
+      "standard": "标准",
+      "standardDesc": "默认速度，常规用量",
+      "fast": "快速",
+      "fastDesc": "1.5 倍速，用量增加",
+      "saveSuccess": "速度已更新",
+      "saveFailed": "保存速度失败：{{error}}"
     }
   },
   "codebuddy": {
@@ -2687,6 +2747,18 @@
           "contextWindowInvalid": "上下文窗口必须是大于 0 的整数",
           "autoCompactInvalid": "自动压缩阈值必须是大于 0 的整数"
         }
+      },
+      "appSpeed": {
+        "title": "Codex 速度",
+        "desc": "保存为启动速度；从本应用启动 Codex 前会写入。",
+        "standard": "标准",
+        "fast": "快速",
+        "launch": "重启",
+        "loadFailed": "加载 Codex 速度失败：{{error}}",
+        "saveSuccess": "Codex 启动速度已保存",
+        "saveFailed": "保存 Codex 速度失败：{{error}}",
+        "launchSuccess": "Codex 已按当前速度重启",
+        "launchFailed": "重启 Codex 失败：{{error}}"
       }
     },
     "githubCopilot": {
@@ -3593,6 +3665,14 @@
         "descPlatform": "CodeBuddy CN 多开实例仅支持 macOS、Windows 和 Linux。"
       }
     },
+    "syncFailed": "同步失败: {{error}}",
+    "syncSuccess": "成功同步 {{count}} 个账号到 WorkBuddy",
+    "syncToWorkbuddy": "同步到 WorkBuddy"
+  },
+  "workbuddy": {
+    "title": "WorkBuddy 账号管理",
+    "noAccounts": "暂无 WorkBuddy 账号",
+    "addAccount": "添加 WorkBuddy 账号",
     "checkin": {
       "title": "每日签到",
       "modalTitle": "每日签到",
@@ -3615,23 +3695,8 @@
       "streakDays": "{{days}} 天",
       "streakRewardCountdown": "再签 {{days}} 天获大礼包",
       "streakRewardToday": "今日可获得大礼包!",
-      "recentDates": "近期签到：",
-      "quotaCategory": {
-        "base": "基础体验包",
-        "activity": "活动赠送包",
-        "extra": "加量包",
-        "other": "其他",
-        "empty": "暂无配额数据"
-      }
+      "recentDates": "近期签到："
     },
-    "syncFailed": "同步失败: {{error}}",
-    "syncSuccess": "成功同步 {{count}} 个账号到 WorkBuddy",
-    "syncToWorkbuddy": "同步到 WorkBuddy"
-  },
-  "workbuddy": {
-    "title": "WorkBuddy 账号管理",
-    "noAccounts": "暂无 WorkBuddy 账号",
-    "addAccount": "添加 WorkBuddy 账号",
     "flowNotice": {
       "title": "WorkBuddy 账号管理说明（点击展开/收起）",
       "desc": "切换账号会按新版 WorkBuddy 官方客户端规则写入本机登录文件；本机导入读取同一登录文件，数据仅在本地处理。",
