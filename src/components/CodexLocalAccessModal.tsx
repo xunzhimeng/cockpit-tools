@@ -105,7 +105,7 @@ interface CodexLocalAccessModalProps {
   portCleanupBusy: boolean;
 }
 
-type StatsRangeKey = 'daily' | 'weekly' | 'monthly';
+type StatsRangeKey = 'daily' | 'weekly' | 'monthly' | 'yearly';
 type CopyableField =
   | 'apiPortUrl'
   | 'baseUrl'
@@ -128,7 +128,7 @@ function normalizeAccessScope(value: string): CodexLocalAccessScope {
 }
 
 function normalizeStatsRangeKey(value: string | null | undefined): StatsRangeKey {
-  if (value === 'weekly' || value === 'monthly') {
+  if (value === 'weekly' || value === 'monthly' || value === 'yearly') {
     return value;
   }
   return 'daily';
@@ -284,6 +284,7 @@ export function CodexLocalAccessModal({
         { key: 'daily', label: t('codex.localAccess.statsRange.daily', '日') },
         { key: 'weekly', label: t('codex.localAccess.statsRange.weekly', '周') },
         { key: 'monthly', label: t('codex.localAccess.statsRange.monthly', '月') },
+        { key: 'yearly', label: t('codex.localAccess.statsRange.yearly', '年') },
       ] satisfies Array<{ key: StatsRangeKey; label: string }>,
     [t],
   );
@@ -316,6 +317,10 @@ export function CodexLocalAccessModal({
     selectedTotals && selectedTotals.requestCount > 0
       ? selectedTotals.totalLatencyMs / selectedTotals.requestCount
       : 0;
+  const avgCostMicrosUsd =
+    selectedTotals && selectedTotals.requestCount > 0
+      ? Math.round((selectedTotals.costMicrosUsd ?? 0) / selectedTotals.requestCount)
+      : 0;
   const successRate =
     selectedTotals && selectedTotals.requestCount > 0
       ? Math.round((selectedTotals.successCount / selectedTotals.requestCount) * 100)
@@ -345,6 +350,15 @@ export function CodexLocalAccessModal({
         }),
       },
       {
+        key: 'cost',
+        label: t('codex.localAccess.stats.cost', '换算金额'),
+        value: formatMicrosUsd(selectedTotals?.costMicrosUsd ?? 0),
+        detail: t('codex.localAccess.stats.costDetail', {
+          avg: formatMicrosUsd(avgCostMicrosUsd),
+          defaultValue: '均次 {{avg}}',
+        }),
+      },
+      {
         key: 'specialTokens',
         label: t('codex.localAccess.stats.specialTokens', '缓存 / 思考'),
         value: formatCompactNumber(
@@ -366,7 +380,7 @@ export function CodexLocalAccessModal({
         }),
       },
     ],
-    [avgLatencyMs, selectedTotals, successRate, t],
+    [avgCostMicrosUsd, avgLatencyMs, selectedTotals, successRate, t],
   );
 
   const oauthAccounts = useMemo(
@@ -1828,6 +1842,12 @@ export function CodexLocalAccessModal({
                                       value: formatCompactNumber(accountStats?.totalTokens ?? 0),
                                       defaultValue: '{{value}}',
                                     })}
+                              </span>
+                              <span className="codex-local-access-account-stat-pill">
+                                {t('codex.localAccess.stats.accountCost', {
+                                  value: formatMicrosUsd(accountStats?.costMicrosUsd ?? 0),
+                                  defaultValue: '金额 {{value}}',
+                                })}
                               </span>
                             </div>
                           </div>

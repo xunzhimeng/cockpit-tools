@@ -78,6 +78,7 @@ export interface CodexLocalAccessStats {
   daily: CodexLocalAccessStatsWindow;
   weekly: CodexLocalAccessStatsWindow;
   monthly: CodexLocalAccessStatsWindow;
+  yearly: CodexLocalAccessStatsWindow;
 }
 
 export interface CodexLocalAccessState {

@@ -198,6 +198,8 @@ pub struct CodexLocalAccessStats {
     #[serde(default)]
     pub monthly: CodexLocalAccessStatsWindow,
     #[serde(default)]
+    pub yearly: CodexLocalAccessStatsWindow,
+    #[serde(default)]
     pub events: Vec<CodexLocalAccessUsageEvent>,
 }
 

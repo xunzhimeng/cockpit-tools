@@ -56,10 +56,12 @@ const DAY_WINDOW_MS: i64 = 24 * 60 * 60 * 1000;
 const AUTO_EXPIRY_PRIORITY_WINDOW_MS: i64 = 2 * DAY_WINDOW_MS;
 const WEEK_WINDOW_MS: i64 = 7 * DAY_WINDOW_MS;
 const MONTH_WINDOW_MS: i64 = 30 * DAY_WINDOW_MS;
+const YEAR_WINDOW_MS: i64 = 365 * DAY_WINDOW_MS;
 const GATEWAY_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 const GATEWAY_PORT_RELEASE_TIMEOUT: Duration = Duration::from_secs(5);
 const GATEWAY_PORT_RELEASE_POLL_INTERVAL: Duration = Duration::from_millis(100);
-const UPSTREAM_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
+const PORT_RELEASE_RETRY_ATTEMPTS: usize = 50;
+const PROXY_CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const DEFAULT_CODEX_USER_AGENT: &str =
     "codex-tui/0.118.0 (Mac OS 26.3.1; arm64) iTerm.app/3.6.9 (codex-tui; 0.118.0)";
 const DEFAULT_CODEX_ORIGINATOR: &str = "codex-tui";
@@ -80,6 +82,7 @@ const CODEX_IMAGE_MODEL_ID: &str = "gpt-image-2";
 const DEFAULT_IMAGES_MAIN_MODEL: &str = "gpt-5.4-mini";
 const MICROS_USD_PER_USD: u64 = 1_000_000;
 const TOKEN_PRICE_DENOMINATOR: u64 = 1_000_000;
+const UPSTREAM_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 const CHAT_COMPLETIONS_PATH: &str = "/v1/chat/completions";
 const RESPONSES_PATH: &str = "/v1/responses";
 const IMAGES_GENERATIONS_PATH: &str = "/v1/images/generations";
@@ -317,12 +320,23 @@ fn redact_proxy_url_for_log(proxy_url: &str) -> String {
     }
 }
 
+fn normalize_proxy_url_for_reqwest(proxy_url: &str) -> String {
+    let proxy_url = proxy_url.trim();
+    if proxy_url.contains("://") {
+        proxy_url.to_string()
+    } else {
+        format!("http://{}", proxy_url)
+    }
+}
+
 fn build_upstream_http_client(signature: &UpstreamHttpClientSignature) -> Result<Client, String> {
     let mut builder = Client::builder();
 
     if let Some(proxy_url) = signature.proxy_url.as_deref() {
+        let normalized_proxy_url = normalize_proxy_url_for_reqwest(proxy_url);
         let mut proxy =
-            Proxy::all(proxy_url).map_err(|e| format!("Codex 本地接入代理地址无效: {}", e))?;
+            Proxy::all(normalized_proxy_url.as_str())
+                .map_err(|e| format!("Codex 本地接入代理地址无效: {}", e))?;
         if let Some(no_proxy) = signature.no_proxy.as_deref() {
             proxy = proxy.no_proxy(NoProxy::from_string(no_proxy));
         }
@@ -338,7 +352,7 @@ fn log_upstream_http_client_signature(signature: &UpstreamHttpClientSignature) {
     match signature.proxy_url.as_deref() {
         Some(proxy_url) => logger::log_info(&format!(
             "[CodexLocalAccess] 上游 HTTP 客户端已应用全局代理 proxy_url={} no_proxy={}",
-            redact_proxy_url_for_log(proxy_url),
+            redact_proxy_url_for_log(&normalize_proxy_url_for_reqwest(proxy_url)),
             signature.no_proxy.as_deref().unwrap_or("<empty>")
         )),
         None => logger::log_info("[CodexLocalAccess] 上游 HTTP 客户端使用系统代理配置"),
@@ -357,8 +371,26 @@ fn upstream_http_client() -> Result<Client, String> {
         }
     }
 
-    let client = build_upstream_http_client(&signature)?;
-    log_upstream_http_client_signature(&signature);
+    let client = match build_upstream_http_client(&signature) {
+        Ok(client) => {
+            log_upstream_http_client_signature(&signature);
+            client
+        }
+        Err(error) if signature.proxy_url.is_some() => {
+            logger::log_codex_api_warn(&format!(
+                "[CodexLocalAccess] 上游 HTTP 客户端应用全局代理失败，将回退到默认网络模式: {}",
+                error
+            ));
+            let fallback_signature = UpstreamHttpClientSignature {
+                proxy_url: None,
+                no_proxy: None,
+            };
+            let fallback_client = build_upstream_http_client(&fallback_signature)?;
+            logger::log_info("[CodexLocalAccess] 上游 HTTP 客户端已回退到默认网络模式");
+            fallback_client
+        }
+        Err(error) => return Err(error),
+    };
     *cache = Some(CachedUpstreamHttpClient {
         signature,
         client: client.clone(),
@@ -2934,6 +2966,7 @@ fn empty_stats_snapshot() -> CodexLocalAccessStats {
     let day_since = now.saturating_sub(DAY_WINDOW_MS);
     let week_since = now.saturating_sub(WEEK_WINDOW_MS);
     let month_since = now.saturating_sub(MONTH_WINDOW_MS);
+    let year_since = now.saturating_sub(YEAR_WINDOW_MS);
     CodexLocalAccessStats {
         since: now,
         updated_at: now,
@@ -2956,6 +2989,13 @@ fn empty_stats_snapshot() -> CodexLocalAccessStats {
         },
         monthly: CodexLocalAccessStatsWindow {
             since: month_since,
+            updated_at: now,
+            totals: CodexLocalAccessUsageStats::default(),
+            accounts: Vec::new(),
+            keys: Vec::new(),
+        },
+        yearly: CodexLocalAccessStatsWindow {
+            since: year_since,
             updated_at: now,
             totals: CodexLocalAccessUsageStats::default(),
             accounts: Vec::new(),
@@ -3076,14 +3116,19 @@ fn recompute_time_windows(stats: &mut CodexLocalAccessStats, now: i64) {
     let day_since = now.saturating_sub(DAY_WINDOW_MS);
     let week_since = now.saturating_sub(WEEK_WINDOW_MS);
     let month_since = now.saturating_sub(MONTH_WINDOW_MS);
+    let year_since = now.saturating_sub(YEAR_WINDOW_MS);
 
-    trim_recent_events(&mut stats.events, month_since);
+    trim_recent_events(&mut stats.events, year_since);
 
     let mut daily = empty_stats_window(day_since, stats.updated_at.max(day_since));
     let mut weekly = empty_stats_window(week_since, stats.updated_at.max(week_since));
     let mut monthly = empty_stats_window(month_since, stats.updated_at.max(month_since));
+    let mut yearly = empty_stats_window(year_since, stats.updated_at.max(year_since));
 
     for event in &stats.events {
+        if event.timestamp >= year_since {
+            apply_usage_event_to_window(&mut yearly, event);
+        }
         if event.timestamp >= month_since {
             apply_usage_event_to_window(&mut monthly, event);
         }
@@ -3098,13 +3143,16 @@ fn recompute_time_windows(stats: &mut CodexLocalAccessStats, now: i64) {
     sort_usage_accounts(&mut daily.accounts);
     sort_usage_accounts(&mut weekly.accounts);
     sort_usage_accounts(&mut monthly.accounts);
+    sort_usage_accounts(&mut yearly.accounts);
     sort_usage_keys(&mut daily.keys);
     sort_usage_keys(&mut weekly.keys);
     sort_usage_keys(&mut monthly.keys);
+    sort_usage_keys(&mut yearly.keys);
 
     stats.daily = daily;
     stats.weekly = weekly;
     stats.monthly = monthly;
+    stats.yearly = yearly;
 }
 
 fn build_api_port_url(port: u16) -> String {
@@ -7807,6 +7855,46 @@ mod tests {
         assert_eq!(key_stats.usage.cached_tokens, 2);
         assert_eq!(key_stats.usage.reasoning_tokens, 3);
         assert_eq!(key_stats.usage.cost_micros_usd, 9);
+    }
+
+    #[test]
+    fn keeps_yearly_window_stats_for_events_older_than_month() {
+        let mut stats = empty_stats_snapshot();
+        stats.events.clear();
+        let now = now_ms();
+        let usage = UsageCapture {
+            input_tokens: 30,
+            output_tokens: 12,
+            total_tokens: 42,
+            cached_tokens: 0,
+            reasoning_tokens: 0,
+            cost_micros_usd: 123_456,
+        };
+
+        append_usage_event(
+            &mut stats.events,
+            now.saturating_sub(90 * DAY_WINDOW_MS),
+            Some("acc-year"),
+            Some("year@example.com"),
+            Some("key-year"),
+            Some("Yearly Key"),
+            Some("gpt-5-codex"),
+            true,
+            88,
+            Some(&usage),
+        );
+        normalize_stats(&mut stats);
+
+        assert!(stats.monthly.keys.is_empty());
+        let yearly_key_stats = stats
+            .yearly
+            .keys
+            .iter()
+            .find(|item| item.key_id == "key-year")
+            .expect("yearly key stats should be present");
+        assert_eq!(yearly_key_stats.usage.request_count, 1);
+        assert_eq!(yearly_key_stats.usage.total_tokens, 42);
+        assert_eq!(yearly_key_stats.usage.cost_micros_usd, 123_456);
     }
 
     #[test]
