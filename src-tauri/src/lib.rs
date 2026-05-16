@@ -278,6 +278,7 @@ pub fn run() {
                     }
                     CloseWindowBehavior::Quit => {
                         info!("[Window] 用户选择退出应用");
+                        window.app_handle().exit(0);
                     }
                     CloseWindowBehavior::Ask => {
                         api.prevent_close();
@@ -500,8 +501,10 @@ pub fn run() {
             commands::codex::codex_local_access_update_port,
             commands::codex::codex_local_access_update_routing_strategy,
             commands::codex::codex_local_access_update_restrict_free_models,
+            commands::codex::codex_local_access_update_access_scope,
             commands::codex::codex_local_access_set_enabled,
             commands::codex::codex_local_access_activate,
+            commands::codex::codex_local_access_test,
             // GitHub Copilot Commands
             commands::github_copilot::list_github_copilot_accounts,
             commands::github_copilot::delete_github_copilot_account,

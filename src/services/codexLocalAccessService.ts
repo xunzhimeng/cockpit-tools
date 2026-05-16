@@ -2,7 +2,9 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   CodexLocalAccessPortCleanupResult,
   CodexLocalAccessRoutingStrategy,
+  CodexLocalAccessScope,
   CodexLocalAccessState,
+  CodexLocalAccessTestResult,
 } from '../types/codexLocalAccess';
 
 export async function getCodexLocalAccessState(): Promise<CodexLocalAccessState> {
@@ -85,6 +87,14 @@ export async function updateCodexLocalAccessRestrictFreeModels(
   return await invoke('codex_local_access_update_restrict_free_models', { modelIds });
 }
 
+export async function updateCodexLocalAccessAccessScope(
+  accessScope: CodexLocalAccessScope,
+): Promise<CodexLocalAccessState> {
+  return await invoke('codex_local_access_update_access_scope', {
+    accessScope,
+  });
+}
+
 export async function setCodexLocalAccessEnabled(
   enabled: boolean,
 ): Promise<CodexLocalAccessState> {
@@ -93,4 +103,8 @@ export async function setCodexLocalAccessEnabled(
 
 export async function activateCodexLocalAccess(): Promise<CodexLocalAccessState> {
   return await invoke('codex_local_access_activate');
+}
+
+export async function testCodexLocalAccess(): Promise<CodexLocalAccessTestResult> {
+  return await invoke('codex_local_access_test');
 }
